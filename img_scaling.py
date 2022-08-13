@@ -1,24 +1,10 @@
 import tensorflow as tf
-import tensorflow_dataset
 from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.image as img
 from tensorflow import keras
-from keras.preprocessing.image import ImageDataGenerator
 
 import numpy as np
-
-IMGS_PATH = "../CatsDogs/"
-CATS_IMGS_PATH = "../CatsDogs/Cats/"
-DOGS_IMGS_PATH = "../CatsDogs/Dogs/"
-SUBDIRS = ["./images/test/", "./images/train/"]
-CATS = "cats/"
-DOGS = "dogs/"
-
-# MAX_IMGS = 12499 + 1
-MAX_IMGS = 10 + 1
-SIZE = (200, 200)
-
 
 # Function to convert dataset images to RGB values and resize them
 def convert_to_RGB_and_resize(animal_imgs: str, animal: str):
@@ -40,7 +26,7 @@ def convert_to_greyscale_and_resize(animal_imgs: str, animal: str):
 
 def plot_images(photos, labels):
     ncols, nrows = 4, 8
-    fig = plt.figure(figsize=(ncols * 3, nrows * 3), dpi=90)
+    plt.figure(figsize=(ncols * 3, nrows * 3), dpi=90)
     for i, (img, label) in enumerate(zip(photos, labels)):
         plt.subplot(nrows, ncols, i + 1)
         plt.imshow(img.astype(int))
@@ -49,33 +35,58 @@ def plot_images(photos, labels):
         plt.title('{} {}'.format(str(label), categ))
         plt.axis('off')
 
+def plot_img(ds):
+    plt.figure(figsize=(10, 10))
+    for images, labels in ds.take(1):
+        for i in range(9):
+            ax = plt.subplot(3, 3, i + 1)
+            plt.imshow(images[i].numpy().astype("uint8"))
+            plt.title(ds.class_names[labels[i]])
+            plt.axis("off")
 
-# Step one: transform to RGB values and scale cat images
-print("> Converting images to RGB values...")
-# convert_to_RGB_and_resize(CATS_IMGS, CATS)
-# convert_to_RGB_and_resize(DOGS_IMGS, DOGS)
-print("> Images converted and resized.")
 
-imgdatagen = ImageDataGenerator(
-    rescale=1 / 255.,       # Used to rescale color levels
-    validation_split=0.2    # Use 20% of the images for validation, 80% for training
-)
+IMGS_PATH = "../CatsDogs/"
+CATS_IMGS_PATH = "../CatsDogs/cat/"
+DOGS_IMGS_PATH = "../CatsDogs/dog/"
+SUBDIRS = ["./images/test/", "./images/train/"]
+CATS = "cat/"
+DOGS = "dog/"
+
+# MAX_IMGS = 12499 + 1
+MAX_IMGS = 10 + 1
+SIZE = (200, 200)
 
 batch_size = 30
+img_height = 200
+img_width = 200
 
-train_dataset = imgdatagen.flow_from_directory(
-    IMGS_PATH,
-    target_size=SIZE,
-    batch_size=batch_size,
-    classes=('Dogs', 'Cats'),
-    subset='training'
+train_ds = tf.keras.utils.image_dataset_from_directory(
+  IMGS_PATH,
+  validation_split=0.2,
+  subset="training",
+  seed=123,
+  image_size=(img_height, img_width),
+  batch_size=batch_size,
+  label_mode="int",
+  labels="inferred",
+  color_mode="rgb"
 )
 
-val_dataset = imgdatagen.flow_from_directory(
-    IMGS_PATH,
-    target_size=SIZE,
-    batch_size=batch_size,
-    classes=('Dogs', 'Cats'),
-    subset='validation'
+val_ds = tf.keras.utils.image_dataset_from_directory(
+  IMGS_PATH,
+  validation_split=0.2,
+  subset="validation",
+  seed=123,
+  image_size=(img_height, img_width),
+  batch_size=batch_size,
+  label_mode="int",
+  labels="inferred",
+  color_mode="rgb"
 )
 
+#plot_img(train_ds)
+
+AUTOTUNE = tf.data.AUTOTUNE
+
+train_ds = train_ds.cache().prefetch(buffer_size=AUTOTUNE)
+val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)

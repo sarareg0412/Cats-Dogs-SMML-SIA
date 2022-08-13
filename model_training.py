@@ -1,46 +1,31 @@
+import tensorflow as tf
 from tensorflow import keras
-from img_scaling import train_dataset, val_dataset
+from img_scaling import train_ds, val_ds
 
-model = keras.models.Sequential()
+num_classes = 2
 
-initializers = {
+model = keras.models.Sequential([
+    tf.keras.layers.Rescaling(1./255),
+    tf.keras.layers.Conv2D(32, 3, activation='relu'),
+    tf.keras.layers.MaxPooling2D(),
+    tf.keras.layers.Conv2D(32, 3, activation='relu'),
+    tf.keras.layers.MaxPooling2D(),
+    tf.keras.layers.Conv2D(32, 3, activation='relu'),
+    tf.keras.layers.MaxPooling2D(),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(128, activation='relu'),
+    tf.keras.layers.Dense(num_classes)
+])
 
-}
-
-model.add(
-    keras.layers.Conv2D(
-        24, 5, input_shape=(256, 256, 3),
-        activation='relu',
-    )
-)
-model.add(keras.layers.MaxPooling2D(2))
-model.add(
-    keras.layers.Conv2D(
-        48, 5, activation='relu',
-    )
-)
-model.add(keras.layers.MaxPooling2D(2))
-model.add(
-    keras.layers.Conv2D(
-        96, 5, activation='relu',
-    )
-)
-model.add(keras.layers.Flatten())
-model.add(keras.layers.Dropout(0.9))
-
-model.add(keras.layers.Dense(
-    2, activation='softmax',)
+model.compile(
+    #optimizer=keras.optimizers.Adamax(lr=0.001),
+    optimizer='adam',
+    loss='binary_crossentropy',
+    metrics=['acc']
 )
 
-model.summary()
-
-model.compile(loss='binary_crossentropy',
-              optimizer=keras.optimizers.Adamax(lr=0.001),
-              metrics=['acc'])
-
-history = model.fit(
-    train_dataset,
-    validation_data = val_dataset,
-    workers=10,
-    epochs=20,
+model.fit(
+    train_ds,
+    validation_data = val_ds,
+    epochs=3,
 )
