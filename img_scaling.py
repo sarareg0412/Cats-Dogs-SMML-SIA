@@ -1,5 +1,5 @@
 import tensorflow as tf
-from PIL import Image
+#from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.image as img
 from tensorflow import keras
@@ -7,21 +7,21 @@ from tensorflow import keras
 import numpy as np
 
 # Function to convert dataset images to RGB values and resize them
-def convert_to_RGB_and_resize(animal_imgs: str, animal: str):
-    for i in range(MAX_IMGS):
-        jpg = Image.open(animal_imgs + str(i) + ".jpg").convert("RGBA")
-        x, y = jpg.size
-        rgb = Image.new("RGBA", (x, y), (255, 255, 255))
-        rgb.paste(jpg, (0, 0, x, y), jpg)
-        rgb = rgb.resize(SIZE)
-        # rgb.save(SUBDIRS[1] + animal + str(i) + ".png", "PNG", quality=100)
-
-
-def convert_to_greyscale_and_resize(animal_imgs: str, animal: str):
-    for i in range(MAX_IMGS + 1):
-        grey = Image.open(animal_imgs + str(i) + ".jpg").convert("LA")
-        grey = grey.resize(SIZE)
-        grey.save(SUBDIRS[1] + animal + str(i) + ".png", "PNG", quality=100)
+# def convert_to_RGB_and_resize(animal_imgs: str, animal: str):
+#     for i in range(MAX_IMGS):
+#         jpg = Image.open(animal_imgs + str(i) + ".jpg").convert("RGBA")
+#         x, y = jpg.size
+#         rgb = Image.new("RGBA", (x, y), (255, 255, 255))
+#         rgb.paste(jpg, (0, 0, x, y), jpg)
+#         rgb = rgb.resize(SIZE)
+#         # rgb.save(SUBDIRS[1] + animal + str(i) + ".png", "PNG", quality=100)
+#
+#
+# def convert_to_greyscale_and_resize(animal_imgs: str, animal: str):
+#     for i in range(MAX_IMGS + 1):
+#         grey = Image.open(animal_imgs + str(i) + ".jpg").convert("LA")
+#         grey = grey.resize(SIZE)
+#         grey.save(SUBDIRS[1] + animal + str(i) + ".png", "PNG", quality=100)
 
 
 def plot_images(photos, labels):
@@ -85,6 +85,10 @@ val_ds = tf.keras.utils.image_dataset_from_directory(
 )
 
 #plot_img(train_ds)
+normalization_layer = tf.keras.layers.Rescaling(1./255)
+
+train_ds = train_ds.map(lambda x, y: (normalization_layer(x), y))
+val_ds = val_ds.map(lambda x, y: (normalization_layer(x), y))
 
 AUTOTUNE = tf.data.AUTOTUNE
 
