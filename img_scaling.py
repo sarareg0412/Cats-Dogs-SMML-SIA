@@ -1,5 +1,9 @@
+import glob
+import os
+import warnings
+
 import tensorflow as tf
-#from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import matplotlib.pyplot as plt
 import matplotlib.image as img
 from tensorflow import keras
@@ -45,6 +49,48 @@ def plot_img(ds):
             plt.axis("off")
 
 
+def rm_faulty_images(path: str = None):
+    warnings.filterwarnings(
+        "ignore",
+        "(Possibly )?corrupt EXIF data",
+        UserWarning
+    )
+
+    warnings.filterwarnings(
+        "ignore",
+        "extraneous bytes before marker",
+        UserWarning
+    )
+
+    img_paths = glob.glob(os.path.join(path, '*/*.*'))
+    faulty_images = []
+
+    print("Bad paths:")
+    for image_path in img_paths:
+        try:
+            # we deal also with PIL for torch
+            # (tf skips jpgs that causes training issues)
+            img_bytes = tf.io.read_file(image_path)
+            _ = tf.image.decode_image(img_bytes)
+            _ = Image.open(image_path)
+        except (
+                tf.errors.InvalidArgumentError,
+                UnidentifiedImageError
+        ) as e:
+            print(f"- Found bad path at: {image_path} - {e}")
+            faulty_images.append(image_path)
+
+    if len(faulty_images) == 0:
+        print("Images are ok!")
+    else:
+        print("Removing them...")
+        os.system(f"mkdir {path}" + "Trash")
+        for path in faulty_images:
+            print(f"- Moving image: {path} to Trash")
+            os.system(f"copy {path} .\Trash")
+            os.system(f"rm -rf {path}")
+
+
 IMGS_PATH = "../CatsDogs/"
 CATS_IMGS_PATH = "../CatsDogs/cat/"
 DOGS_IMGS_PATH = "../CatsDogs/dog/"
@@ -59,6 +105,8 @@ SIZE = (200, 200)
 batch_size = 30
 img_height = 200
 img_width = 200
+
+rm_faulty_images(IMGS_PATH)
 
 train_ds = tf.keras.utils.image_dataset_from_directory(
   IMGS_PATH,
