@@ -6,6 +6,7 @@ from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, \
     Dropout, Flatten, Dense, Activation, \
     BatchNormalization
+import matplotlib
 
 classifier = Sequential()
 
@@ -40,10 +41,36 @@ classifier.summary()
 
 history = classifier.fit(
     train_ds,
-    steps_per_epoch=625,
     epochs=3,
-    validation_data=val_ds,
-    validation_steps=5000
+    validation_data=val_ds
 )
 
-#model.summary()
+
+def plot_history(history, yrange):
+    '''Plot loss and accuracy as a function of the epoch,
+    for the training and validation datasets.
+    '''
+    acc = history.history['acc']
+    val_acc = history.history['val_acc']
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+
+    # Get number of epochs
+    epochs = range(len(acc))
+
+    # Plot training and validation accuracy per epoch
+    plt.plot(epochs, acc)
+    plt.plot(epochs, val_acc)
+    plt.title('Training and validation accuracy')
+    plt.ylim(yrange)
+
+    # Plot training and validation loss per epoch
+    plt.figure()
+
+    plt.plot(epochs, loss)
+    plt.plot(epochs, val_loss)
+    plt.title('Training and validation loss')
+
+    plt.show()
+
+
