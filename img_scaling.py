@@ -1,15 +1,17 @@
 import glob
 import os
+import pickle
 import warnings
 
+import h5py
 import tensorflow as tf
 from PIL import Image, UnidentifiedImageError
-#import matplotlib.pyplot as plt
+from keras_preprocessing.image import ImageDataGenerator
 
-#import matplotlib.image as img
 from tensorflow import keras
 
 import numpy as np
+
 
 # Function to convert dataset images to RGB values and resize them
 # def convert_to_RGB_and_resize(animal_imgs: str, animal: str):
@@ -48,7 +50,6 @@ import numpy as np
 #             plt.imshow(images[i].numpy().astype("uint8"))
 #             plt.title(ds.class_names[labels[i]])
 #             plt.axis("off")
-
 
 def rm_faulty_images(path: str = None):
     warnings.filterwarnings(
@@ -106,43 +107,59 @@ DOGS = "dog/"
 MAX_IMGS = 10 + 1
 SIZE = (200, 200)
 
-batch_size = 30
-img_height = 200
-img_width = 200
+BATCH_SIZE = 30
+IMG_HEIGHT = 200
+IMG_WIDTH = 200
 
-rm_faulty_images(IMGS_PATH)
+#rm_faulty_images(IMGS_PATH)
 
 train_ds = tf.keras.utils.image_dataset_from_directory(
-  IMGS_PATH,
-  validation_split=0.2,
-  subset="training",
-  seed=123,
-  image_size=(img_height, img_width),
-  batch_size=batch_size,
-  label_mode="int",
-  labels="inferred",
-  color_mode="rgb"
+    IMGS_PATH,  # Directory where the data is located
+    labels="inferred",  # labels are generated from the directory structure
+    label_mode="binary",  # labels are encoded as scalars
+    batch_size=BATCH_SIZE,  # Size of the batches of data
+    validation_split=0.2,  # Fraction of data to reserve for validation
+    subset="training",
+    seed=123,
+    image_size=(IMG_HEIGHT, IMG_WIDTH),
+    color_mode="rgb"
 )
 
 val_ds = tf.keras.utils.image_dataset_from_directory(
-  IMGS_PATH,
-  validation_split=0.2,
-  subset="validation",
-  seed=123,
-  image_size=(img_height, img_width),
-  batch_size=batch_size,
-  label_mode="int",
-  labels="inferred",
-  color_mode="rgb"
+    IMGS_PATH,
+    labels="inferred",
+    label_mode="binary",
+    batch_size=BATCH_SIZE,
+    validation_split=0.2,
+    subset="validation",
+    seed=123,
+    image_size=(IMG_HEIGHT, IMG_WIDTH),
+    color_mode="rgb"
 )
 
-#plot_img(train_ds)
-normalization_layer = tf.keras.layers.Rescaling(1./255)
+# plot_img(train_ds)
+normalization_layer = tf.keras.layers.Rescaling(1. / 255)
 
 train_ds = train_ds.map(lambda x, y: (normalization_layer(x), y))
 val_ds = val_ds.map(lambda x, y: (normalization_layer(x), y))
 
 AUTOTUNE = tf.data.AUTOTUNE
 
-train_ds = train_ds.cache().prefetch(buffer_size=AUTOTUNE)
-val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
+# train_ds = train_ds.cache().prefetch(buffer_size=AUTOTUNE)
+# val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
+#
+# # Saving datasets for later training
+# train_images = np.concatenate(list(train_ds.map(lambda x, y:x)))
+# train_labels = np.concatenate(list(train_ds.map(lambda x, y:y)))
+#
+# val_images = np.concatenate(list(val_ds.map(lambda x, y:x)))
+# val_labels = np.concatenate(list(val_ds.map(lambda x, y:y)))
+#
+# inputs = np.concatenate((train_images, val_images), axis=0)
+# targets = np.concatenate((train_labels, val_labels), axis=0)
+
+# with h5py.File('./input_dataset.hdf5', 'w') as f:
+#     f.create_dataset("inputs", data=inputs)
+#
+# with h5py.File('./target_dataset.hdf5', 'w') as f:
+#     f.create_dataset("targets", data=targets)
