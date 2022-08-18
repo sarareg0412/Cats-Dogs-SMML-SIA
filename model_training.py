@@ -2,7 +2,7 @@ import h5py
 import tensorflow as tf
 from sklearn.model_selection import KFold, StratifiedKFold
 from tensorflow import keras
-from img_scaling import train_ds, val_ds, BATCH_SIZE, IMGS_PATH
+from preprocessing import train_dataset, val_dataset, BATCH_SIZE, IMGS_PATH
 
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, \
@@ -70,58 +70,11 @@ SHUFFLE_BUFFER_SIZE = 100
 
 
 def k_fold_cross_validation(model, n_folds=N_OF_FOLDS, epochs=N_OF_EPOCHS, batch_size=BATCH_SIZE):
-    # dictionary where data will be stored and counter
-    dic = {}
-    i = 0.0
+    X, y = train_dataset.next()
 
-    ds = train_ds.concatenate(val_ds)
+    for train, test in KFold.split(X, y):
+        model.fit()
 
-    lookup_images = {}
-    lookup_labels = {}
-    for i, (x, y) in enumerate(ds):
-        lookup_images[i] = x
-        lookup_labels[i] = y
-
-    folds = KFold(n_folds, shuffle=True).split(np.arange(len(ds)))
-
-    # for train_index, val_index in folds:
-    #     x_train_kf, x_val_kf = train_ds[train_index], train_ds[val_index]
-    #     y_train_kf, y_val_kf = val_ds[train_index], val_ds[val_index]
-    for train, test in folds:
-
-        images_train = np.concatenate(list(map(lookup_images.get, train)))
-        labels_train = np.concatenate(list(map(lookup_labels.get, train)))
-
-        images_test = np.concatenate(list(map(lookup_images.get, test)))
-        labels_test = np.concatenate(list(map(lookup_labels.get, test)))
-
-        history = model.fit(
-            images_train,
-            labels_train,
-            callbacks=[mcp_save, reduce_lr_loss, early_stopping],
-            epochs=epochs
-        )
-
-        if dic == {}:
-            # if dictionary is empty, values will be put there
-            dic['train_acc'] = np.array(history.history['accuracy'])
-            dic['train_loss'] = np.array(history.history['loss'])
-            dic['val_acc'] = np.array(history.history['val_accuracy'])
-            dic['val_loss'] = np.array(history.history['val_loss'])
-        else:
-            # if dictionary is not empty, values will be added element wise
-            dic['train_acc'] += np.array(history.history['accuracy'])
-            dic['train_loss'] += np.array(history.history['loss'])
-            dic['val_acc'] += np.array(history.history['val_accuracy'])
-            dic['val_loss'] += np.array(history.history['val_loss'])
-
-        i += 1
-
-    for k in dic:
-        # each number in each array in the dictionary will be divided by the number of iterations, producing the mean of all the values read
-        dic[k] /= i
-
-    return dic
 
 def save_dict():
     dict = k_fold_cross_validation(model=get_model(1))
