@@ -59,69 +59,53 @@ def get_model(i: int):
 # )
 
 N_OF_FOLDS = 5
-N_OF_EPOCHS = 5
-SHUFFLE_BUFFER_SIZE = 100
+N_OF_EPOCHS = 30
+
+reduce_lr_loss = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='min')
+early_stopping = EarlyStopping(monitor='val_loss', patience=15, verbose=0, mode='min')
 
 
-save_dir = '/saved_models/'
-reduce_lr_loss = ReduceLROnPlateau(monitor='loss', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='min')
-early_stopping = EarlyStopping(monitor='loss', patience=15, verbose=0, mode='min')
+def get_model_name(i):
+    return 'model_'+str(i)+'.hdf5'
 
-
-def get_model_name(i,k):
-    return 'model_'+str(i)+"_"+str(k)+'.h5'
-
-def k_fold_cross_validation(i):
+def k_fold_cross_validation(model_index):
     #Training images and training labels
     X, y = train_dataset.next()
+    print(f"Number of samples: {len(X)} \n Number of photos: {len(train_dataset)}")
 
-    # For augmentation
-    traing_idg = ImageDataGenerator(width_shift_range=0.1,
-                             height_shift_range=0.1,
-                             zoom_range=0.3,
-                             fill_mode='nearest',
-                             horizontal_flip=True,
-                             rescale=1. / 255)
-    #For validation
-    valid_idg = ImageDataGenerator(rescale=1. /255)
+    model = get_model(model_index)
 
-    scores = []
-    VALIDATION_ACCURACY = []
-    VALIDATION_LOSS = []
+    HISTORIES = []
     n_fold = 1
-
     k_fold = KFold(n_splits=N_OF_FOLDS, shuffle= True)
+
+    #Kfold training loop
     for train, test in k_fold.split(X, y):
         print('------------------------------------------------------------------------')
         print(f'Training fold {n_fold} ...')
 
         #Create callback to save model for current fold
-        mcp_save = ModelCheckpoint(save_dir + get_model_name(i,n_fold),
+        mcp_save = ModelCheckpoint(get_model_name(model_index),
                                    save_best_only=True,
-                                   monitor='loss',
+                                   monitor='val_loss',
                                    mode='min',
                                    verbose=1)
 
-        model = get_model(i)
-        tr = X[train]
-        te = y[train]
         history = model.fit(
-            X[train],
-            y[train],
-            batch_size=BATCH_SIZE,
+            X[train],                               # Training data
+            y[train],                               # Training labels
+            validation_data=(X[test], y[test]),     # Validation set
             epochs=N_OF_EPOCHS,
-            callbacks=[mcp_save, reduce_lr_loss, early_stopping])
+            callbacks=[mcp_save, reduce_lr_loss, early_stopping],
+            verbose=1
+        )
 
-        scores = model.evaluate(X[test], y[test], verbose=0)
-        # scores.append({'accuracy':np.average(history.history['accuracy']),
-        #                'loss':np.average(history.history['loss'])})
-
-        VALIDATION_ACCURACY.append(scores[1])
-        VALIDATION_LOSS.append(scores[0])
-
+        HISTORIES.append(history)
         n_fold += 1
 
-    return [VALIDATION_ACCURACY,VALIDATION_LOSS]
+    return HISTORIES
 
 
-plot_scores(k_fold_cross_validation(1))
+# print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+plot_scores(k_fold_cross_validation(1), 1)
+
