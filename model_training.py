@@ -2,7 +2,7 @@ import tensorflow as tf
 from keras_preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import KFold
 from tensorflow import keras
-from preprocessing import train_dataset, val_dataset, BATCH_SIZE, IMGS_PATH, SIZE
+from preprocessing import train_dataset, val_dataset, BATCH_SIZE, IMGS_PATH, SIZE, STEPS_PER_EPOCH
 
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, \
@@ -59,7 +59,7 @@ def get_model(i: int):
 # )
 
 N_OF_FOLDS = 5
-N_OF_EPOCHS = 30
+N_OF_EPOCHS = 3
 
 reduce_lr_loss = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='min')
 early_stopping = EarlyStopping(monitor='val_loss', patience=15, verbose=0, mode='min')
@@ -69,13 +69,17 @@ def get_model_name(i):
     return 'model_'+str(i)+'.hdf5'
 
 def k_fold_cross_validation(model_index):
+
+    HISTORIES = []
+
+    #while train_dataset.next() is not None:
+
     #Training images and training labels
     X, y = train_dataset.next()
-    print(f"Number of samples: {len(X)} \n Number of photos: {len(train_dataset)}")
+    print(f"Number of samples: {len(X)} \nNumber of photos: {len(train_dataset)}")
 
     model = get_model(model_index)
 
-    HISTORIES = []
     n_fold = 1
     k_fold = KFold(n_splits=N_OF_FOLDS, shuffle= True)
 
@@ -97,6 +101,7 @@ def k_fold_cross_validation(model_index):
             validation_data=(X[test], y[test]),     # Validation set
             epochs=N_OF_EPOCHS,
             callbacks=[mcp_save, reduce_lr_loss, early_stopping],
+            steps_per_epoch=STEPS_PER_EPOCH / 5,
             verbose=1
         )
 

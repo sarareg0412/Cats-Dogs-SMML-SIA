@@ -16,7 +16,8 @@ CATS = "Cats"
 DOGS = "Dogs"
 SIZE = (200, 200)
 
-BATCH_SIZE = 30
+BATCH_SIZE = 32
+STEPS_PER_EPOCH = 20000/BATCH_SIZE
 IMG_HEIGHT = 200
 IMG_WIDTH = 200
 # matches any string with the substring ".<digits>."
