@@ -15,6 +15,8 @@ from model_testing import  plot_scores
 import pandas as pd
 import numpy as np
 
+MAX_BATCHES = 25000/BATCH_SIZE
+
 def get_model(i: int):
     if i == 1:
         model = Sequential()
@@ -72,19 +74,15 @@ def k_fold_cross_validation(model_index):
 
     HISTORIES = []
 
-    #while train_dataset.next() is not None:
-
-    #Training images and training labels
-    X, y = train_dataset.index_array, train_dataset.classes
     #print(f"Number of samples: {len(X)} \nNumber of photos: {len(train_dataset)}")
 
     model = get_model(model_index)
-
+    X_train, y_train, X_test, y_test = [], [], [], []
     n_fold = 1
     k_fold = KFold(n_splits=N_OF_FOLDS, shuffle= True)
 
     #Kfold training loop
-    for train, test in k_fold.split(X, y):
+    for train, test in k_fold.split(train_dataset):
         print('------------------------------------------------------------------------')
         print(f'Training fold {n_fold} ...')
 
@@ -95,10 +93,25 @@ def k_fold_cross_validation(model_index):
                                    mode='min',
                                    verbose=1)
 
+        # Training images and training labels
+        i = 0
+        for image_batch in train_dataset:
+            if i > MAX_BATCHES:
+                break
+            else:
+                i +=1
+                if train_dataset.batch_index in train:
+                    X_train.append(image_batch[0])
+                    y_train.append(image_batch[1])
+                else:
+                    X_test.append(image_batch[0])
+                    y_test.append(image_batch[1])
+
+
         history = model.fit(
-            train_dataset[train.all()][0],                                  # Training data
-            train_dataset[train.all()][1],                                  # Training labels
-            validation_data=train_dataset[test.all()],                      # Validation set
+            X_train,                                  # Training data
+            y_train,                                  # Training labels
+            validation_data=(X_test, y_test),                      # Validation set
             epochs=N_OF_EPOCHS,
             callbacks=[mcp_save, reduce_lr_loss, early_stopping],
             steps_per_epoch=STEPS_PER_EPOCH,

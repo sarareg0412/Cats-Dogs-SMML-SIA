@@ -11,7 +11,7 @@ from preprocessing import IMGS_PATH
 from keras import layers
 
 BATCH_SIZE = 256
-
+MAX_BATCHES = 25000/BATCH_SIZE
 
 gen = ImageDataGenerator(
     rescale = 1/127.,
