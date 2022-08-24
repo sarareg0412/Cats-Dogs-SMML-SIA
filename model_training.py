@@ -75,8 +75,8 @@ def k_fold_cross_validation(model_index):
     #while train_dataset.next() is not None:
 
     #Training images and training labels
-    X, y = train_dataset.next()
-    print(f"Number of samples: {len(X)} \nNumber of photos: {len(train_dataset)}")
+    X, y = train_dataset.index_array, train_dataset.classes
+    #print(f"Number of samples: {len(X)} \nNumber of photos: {len(train_dataset)}")
 
     model = get_model(model_index)
 
@@ -96,12 +96,12 @@ def k_fold_cross_validation(model_index):
                                    verbose=1)
 
         history = model.fit(
-            X[train],                               # Training data
-            y[train],                               # Training labels
-            validation_data=(X[test], y[test]),     # Validation set
+            train_dataset[train.all()][0],                                  # Training data
+            train_dataset[train.all()][1],                                  # Training labels
+            validation_data=train_dataset[test.all()],                      # Validation set
             epochs=N_OF_EPOCHS,
             callbacks=[mcp_save, reduce_lr_loss, early_stopping],
-            steps_per_epoch=STEPS_PER_EPOCH / 5,
+            steps_per_epoch=STEPS_PER_EPOCH,
             verbose=1
         )
 
