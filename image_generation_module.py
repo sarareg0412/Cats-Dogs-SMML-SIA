@@ -1,8 +1,10 @@
+import glob
 import os
+import shutil
 import time
 
 from IPython import display
-
+import imageio
 import tensorflow as tf
 from keras_preprocessing.image import ImageDataGenerator
 from matplotlib import pyplot as plt
@@ -12,6 +14,7 @@ from keras import layers
 
 BATCH_SIZE = 256
 MAX_BATCHES = 25000/BATCH_SIZE
+tmp_dir = 'tmp/'
 
 gen = ImageDataGenerator(
     rescale = 1/127.,
@@ -109,7 +112,7 @@ checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                  generator=generator,
                                  discriminator=discriminator)
 
-EPOCHS = 50
+EPOCHS = 3
 noise_dim = 100
 num_examples_to_generate = 16
 
@@ -152,8 +155,8 @@ def generate_and_save_images(model, epoch, test_input):
         plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
         plt.axis('off')
 
-    plt.savefig('image_at_epoch_{:04d}.png'.format(epoch))
-    plt.show()
+    plt.savefig(f'{tmp_dir}image_at_epoch_{epoch:04d}.png')
+    #plt.show()
 
 
 def train(dataset, epochs):
@@ -161,10 +164,17 @@ def train(dataset, epochs):
         start = time.time()
 
         i = 1
+        print(f"Max Batches:{MAX_BATCHES}")
         for image_batch in dataset:
-            print(f"Training step: {i}")
-            train_step(image_batch[0])
-            i = i+1
+            if i % 30 == 0:
+                print(f"Training step: {i}")
+
+            if i > MAX_BATCHES:
+                print(f"End of training.")
+                break
+            else:
+                i += 1
+                train_step(image_batch[0])
 
         # Produce images for the GIF as you go
         display.clear_output(wait=True)
@@ -185,5 +195,33 @@ def train(dataset, epochs):
                              seed)
 
 
+anim_file = 'dcgan.gif'
+
+def create_gif():
+    with imageio.get_writer(anim_file, mode='I') as writer:
+        filenames = glob.glob(f'{tmp_dir}image*.png')
+        filenames = sorted(filenames)
+        for filename in filenames:
+            image = imageio.imread(filename)
+            writer.append_data(image)
+        image = imageio.imread(filename)
+        writer.append_data(image)
+
+
+# First remove directory, then create it with the passed path
+def create_dir(path):
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    os.makedirs(path, exist_ok=True)
+
+
+create_dir(tmp_dir)
 print("Starting training.")
 train(train_dataset, EPOCHS)
+print("Training completed.")
+print("Creating GIF of saved images.")
+create_gif()
+print("Done.")
+
+
+

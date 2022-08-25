@@ -3,6 +3,9 @@ import glob
 import re
 import shutil
 import warnings
+
+import h5py
+import numpy as np
 import tensorflow as tf
 from PIL import Image, UnidentifiedImageError
 from keras_preprocessing.image import ImageDataGenerator
@@ -16,7 +19,7 @@ CATS = "Cats"
 DOGS = "Dogs"
 SIZE = (200, 200)
 
-BATCH_SIZE = 320
+BATCH_SIZE = 32
 STEPS_PER_EPOCH = (20000*4/5)/BATCH_SIZE
 IMG_HEIGHT = 200
 IMG_WIDTH = 200
@@ -139,3 +142,15 @@ val_dataset = gen.flow_from_directory(
     color_mode="rgb"
 )
 
+# print("Converting train_dataset as a numpy array ...")
+# X_train = np.concatenate(train_dataset)
+# print("Done. \nConverting val_dataset as a numpy array ...")
+# X_val = np.concatenate(val_dataset)
+#
+#
+# print("Done. \nSaving numpy arrays as files ...")
+# with h5py.File('datasets.hdf5', 'w') as f:
+#     f.create_dataset("train/train_ds",X_train, len(X_train), dtype='f')
+#     f.create_dataset("val/test_ds",X_val, len(X_val), dtype='f')
+#
+# print("Done.")

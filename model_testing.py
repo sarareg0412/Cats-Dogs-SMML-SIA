@@ -9,15 +9,10 @@ def plot_scores(histories, model_index):
     acc, loss, val_acc, val_loss = [], [], [], []
 
     for i in range(len(histories)):
-        acc.append(np.ravel(histories[i].history['accuracy']))
-        loss.append(np.ravel(histories[i].history['loss']))
-        val_acc.append(np.ravel(histories[i].history['val_accuracy']))
-        val_loss.append(np.ravel(histories[i].history['val_loss']))
-
-    acc = np.ravel(acc)
-    val_acc = np.ravel(val_acc)
-    loss = np.ravel(loss)
-    val_loss = np.ravel(val_loss)
+        loss.append(histories[0][i][0])
+        acc.append(histories[0][i][1])
+        val_loss.append(histories[1][i][0])
+        val_acc.append(histories[1][i][1])
 
     plt.subplot(211)
     plt.title('Cross Entropy Loss')

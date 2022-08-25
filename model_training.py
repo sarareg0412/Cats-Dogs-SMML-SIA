@@ -1,3 +1,5 @@
+import os
+
 import tensorflow as tf
 from keras_preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import KFold
@@ -15,6 +17,7 @@ from model_testing import  plot_scores
 import pandas as pd
 import numpy as np
 
+os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
 MAX_BATCHES = 25000/BATCH_SIZE
 
 def get_model(i: int):
@@ -72,56 +75,79 @@ def get_model_name(i):
 
 def k_fold_cross_validation(model_index):
 
-    HISTORIES = []
+    TRAINING_HISTORIES = []
+    VALIDATION_HISTORIES = []
 
-    #print(f"Number of samples: {len(X)} \nNumber of photos: {len(train_dataset)}")
 
     model = get_model(model_index)
-    X_train, y_train, X_test, y_test = [], [], [], []
-    n_fold = 1
-    k_fold = KFold(n_splits=N_OF_FOLDS, shuffle= True)
 
-    #Kfold training loop
-    for train, test in k_fold.split(train_dataset):
-        print('------------------------------------------------------------------------')
-        print(f'Training fold {n_fold} ...')
+    for epoch in range(N_OF_EPOCHS):
+        print(f'*****************************EPOCH {epoch}*********************************')
 
-        #Create callback to save model for current fold
-        mcp_save = ModelCheckpoint(get_model_name(model_index),
-                                   save_best_only=True,
-                                   monitor='val_loss',
-                                   mode='min',
-                                   verbose=1)
+        n_fold = 1
+        k_fold = KFold(n_splits=N_OF_FOLDS, shuffle= True)
 
-        # Training images and training labels
-        i = 0
-        for image_batch in train_dataset:
-            if i > MAX_BATCHES:
-                break
-            else:
-                i +=1
-                if train_dataset.batch_index in train:
-                    X_train.append(image_batch[0])
-                    y_train.append(image_batch[1])
+        #Kfold training loop
+        for train, test in k_fold.split(train_dataset):
+            print('------------------------------------------------------------------------')
+            print(f'Training fold {n_fold} ...')
+
+            #Create callback to save model for current fold
+            mcp_save = ModelCheckpoint(get_model_name(model_index),
+                                       save_best_only=True,
+                                       monitor='val_loss',
+                                       mode='min',
+                                       verbose=1)
+
+            # TRAINING LOOP
+            i = 0
+            print(f"Starting training loop. Max Batches:{MAX_BATCHES}")
+            history = []
+            for image_batch in train_dataset:
+                if i%100 == 0 :
+                    print(f"Round:{i}")
+
+                if i > MAX_BATCHES:
+                    break
                 else:
-                    X_test.append(image_batch[0])
-                    y_test.append(image_batch[1])
+                    i +=1
+                    # Train the model for each batch in the train set of the fold
+                    if train_dataset.batch_index in train:
 
+                        history = model.train_on_batch(
+                            image_batch[0],
+                            image_batch[1],
+                            reset_metrics=False,  # Metrics are accumulated across batches
+                        )
 
-        history = model.fit(
-            X_train,                                  # Training data
-            y_train,                                  # Training labels
-            validation_data=(X_test, y_test),                      # Validation set
-            epochs=N_OF_EPOCHS,
-            callbacks=[mcp_save, reduce_lr_loss, early_stopping],
-            steps_per_epoch=STEPS_PER_EPOCH,
-            verbose=1
-        )
+            print(f"{model.metrics_names}")
+            TRAINING_HISTORIES.append(history)
 
-        HISTORIES.append(history)
-        n_fold += 1
+            # VALIDATION LOOP
+            i = 0
+            print(f"Starting validation loop. Max Batches:{MAX_BATCHES}")
+            history = []
+            for image_batch in train_dataset:
+                if i%100 == 0 :
+                    print(f"Round:{i}")
 
-    return HISTORIES
+                if i > MAX_BATCHES:
+                    break
+                else:
+                    i +=1
+                    # Train the model for each batch in the train set of the fold
+                    if train_dataset.batch_index in test:
+
+                        history = model.test_on_batch(
+                            image_batch[0],
+                            image_batch[1],
+                            reset_metrics=False,        # Metrics are accumulated across batches
+                        )
+
+            VALIDATION_HISTORIES.append(history)
+            n_fold += 1
+
+    return [TRAINING_HISTORIES, VALIDATION_HISTORIES]
 
 
 # print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
