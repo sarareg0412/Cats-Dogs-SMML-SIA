@@ -1,6 +1,5 @@
 import glob
 import os
-import shutil
 import time
 
 from IPython import display
@@ -9,6 +8,7 @@ import tensorflow as tf
 from keras_preprocessing.image import ImageDataGenerator
 from matplotlib import pyplot as plt
 
+from model_testing import create_dir
 from preprocessing import IMGS_PATH
 from keras import layers
 
@@ -16,53 +16,99 @@ BATCH_SIZE = 256
 MAX_BATCHES = 25000/BATCH_SIZE
 tmp_dir = 'tmp/'
 
+IMG_WIDTH = 32
+IMG_HEIGHT = 32
+
+N_GEN_IMG = 5
+
+NOISE_SHAPE = 100
+SCALE_FACTOR = 4
 gen = ImageDataGenerator(
     rescale = 1/127.,
 )
 
 train_dataset = gen.flow_from_directory(
     IMGS_PATH,  # Directory where the data is located
-    target_size=(28,28),
+    target_size=(IMG_WIDTH,IMG_HEIGHT),
     class_mode='binary',
     batch_size=BATCH_SIZE,
     seed=123,
-    color_mode="grayscale"
+    color_mode="rgb"
 )
 
 
-# Used to produce images from a seed
+# Could add a Data Augmentation step
+
+weight_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.2, mean=0.0, seed=42)
+
+# Used to produce images from a seed.
+# The Generator network takes as input a simple random noise N-dimensional vector
+# and transforms it according to a learned target distribution.
 def make_generator_model():
     model = tf.keras.Sequential()
-    model.add(layers.Dense(7 * 7 * 256, use_bias=False, input_shape=(100,)))
-    model.add(layers.BatchNormalization())
-    model.add(layers.LeakyReLU())
 
-    model.add(layers.Reshape((7, 7, 256)))
-    assert model.output_shape == (None, 7, 7, 256)  # Note: None is the batch size
+    model.add(layers.Dense(IMG_WIDTH // SCALE_FACTOR * IMG_WIDTH // SCALE_FACTOR * 256, use_bias=False, input_shape=(NOISE_SHAPE,)))
+    model.add(layers.BatchNormalization())
+    model.add(layers.ReLU())
+
+    model.add(layers.Reshape((IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)))
+    assert model.output_shape == (None, IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)  # Note: None is the batch size
     model.add(layers.Dropout(0.4))
 
     model.add(layers.Conv2DTranspose(128, (5, 5), strides=(1, 1), padding='same', use_bias=False))
-    assert model.output_shape == (None, 7, 7, 128)
+    assert model.output_shape == (None, IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 128)
     model.add(layers.BatchNormalization())
-    model.add(layers.LeakyReLU())
+    model.add(layers.ReLU())
     model.add(layers.Dropout(0.4))
 
     model.add(layers.Conv2DTranspose(64, (5, 5), strides=(2, 2), padding='same', use_bias=False))
-    assert model.output_shape == (None, 14, 14, 64)
+    #assert model.output_shape == (None, 14, 14, 64)
     model.add(layers.BatchNormalization())
-    model.add(layers.LeakyReLU())
+    model.add(layers.ReLU())
 
-    model.add(layers.Conv2DTranspose(1, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='relu'))
-    assert model.output_shape == (None, 28, 28, 1)
+    model.add(layers.Conv2DTranspose(3, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh'))
+    #assert model.output_shape == (None, 28, 28, 1)
 
     return model
 
 
+def make_generator_model1():
+    model = tf.keras.Sequential()
+    model.add(layers.Dense(IMG_WIDTH // SCALE_FACTOR * IMG_WIDTH // SCALE_FACTOR * 128,
+                    input_shape=(NOISE_SHAPE,), kernel_initializer=weight_initializer))
+    # model.add(BatchNormalization(epsilon=BN_EPSILON, momentum=BN_MOMENTUM))
+    # model.add(LeakyReLU(alpha=leaky_relu_slope))
+    model.add(layers.Reshape((IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 128)))
+
+    model = transposed_conv(model, 512, ksize=5, stride_size=1)
+    model.add(layers.Dropout(0.4))
+    model = transposed_conv(model, 256, ksize=5, stride_size=2)
+    model.add(layers.Dropout(0.4))
+    model = transposed_conv(model, 128, ksize=5, stride_size=2)
+    model = transposed_conv(model, 64, ksize=5, stride_size=2)
+    model = transposed_conv(model, 32, ksize=5, stride_size=2)
+
+    model.add(layers.Dense(3, activation='tanh', kernel_initializer=weight_initializer))
+
+    return model
+
+
+def transposed_conv(model, out_channels, ksize, stride_size, ptype='same'):
+    model.add(layers.Conv2DTranspose(out_channels, (ksize, ksize),
+                              strides=(stride_size, stride_size), padding=ptype,
+                              kernel_initializer=weight_initializer, use_bias=False))
+    model.add(layers.BatchNormalization())
+    model.add(layers.ReLU())
+    return model
+
+
 # CNN-based image classifier
+# The discriminator outputs a probability that the input image is real or fake [0, 1].
 def make_discriminator_model():
     model = tf.keras.Sequential()
+
     model.add(layers.Conv2D(64, (5, 5), strides=(2, 2), padding='same',
-                            input_shape=[28,28,1]))
+                            input_shape=[IMG_HEIGHT, IMG_WIDTH, 3]))
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.3))
 
@@ -73,6 +119,38 @@ def make_discriminator_model():
     model.add(layers.Flatten())
     model.add(layers.Dense(1))
 
+    return model
+
+
+def make_discriminator_model1():
+    model = tf.keras.Sequential()
+    model.add(layers.Conv2D(64, (5, 5), strides=(1, 1), padding='same', use_bias=False,
+                       input_shape=[IMG_HEIGHT, IMG_WIDTH, 3],
+                       kernel_initializer=weight_initializer))
+    # model.add(BatchNormalization(epsilon=BN_EPSILON, momentum=BN_MOMENTUM))
+    model.add(layers.LeakyReLU())
+    # model.add(Dropout(dropout_rate))
+
+    model = convSN(model, 64, ksize=5, stride_size=2)
+    # model = convSN(model, 128, ksize=3, stride_size=1)
+    model = convSN(model, 128, ksize=5, stride_size=2)
+    # model = convSN(model, 256, ksize=3, stride_size=1)
+    model = convSN(model, 256, ksize=5, stride_size=2)
+    # model = convSN(model, 512, ksize=3, stride_size=1)
+    # model.add(Dropout(dropout_rate))
+
+    model.add(layers.Flatten())
+    model.add(layers.Dense(1, activation='sigmoid'))
+
+    return model
+
+
+def convSN(model, out_channels, ksize, stride_size):
+    model.add(layers.Conv2D(out_channels, (ksize, ksize), strides=(stride_size, stride_size), padding='same',
+                     kernel_initializer=weight_initializer, use_bias=False))
+    model.add(layers.BatchNormalization())
+    model.add(layers.LeakyReLU())
+    #model.add(Dropout(dropout_rate))
     return model
 
 
@@ -148,11 +226,11 @@ def generate_and_save_images(model, epoch, test_input):
     # This is so all layers run in inference mode (batchnorm).
     predictions = model(test_input, training=False)
 
-    fig = plt.figure(figsize=(4, 4))
+    fig = plt.figure(figsize=(N_GEN_IMG, N_GEN_IMG))
 
     for i in range(predictions.shape[0]):
-        plt.subplot(4, 4, i + 1)
-        plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
+        plt.subplot(N_GEN_IMG, N_GEN_IMG, i + 1)
+        plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='rgb')
         plt.axis('off')
 
     plt.savefig(f'{tmp_dir}image_at_epoch_{epoch:04d}.png')
@@ -163,7 +241,7 @@ def train(dataset, epochs):
     for epoch in range(epochs):
         start = time.time()
 
-        i = 1
+        i = 0
         print(f"Max Batches:{MAX_BATCHES}")
         for image_batch in dataset:
             if i % 30 == 0:
@@ -208,11 +286,7 @@ def create_gif():
         writer.append_data(image)
 
 
-# First remove directory, then create it with the passed path
-def create_dir(path):
-    if os.path.isdir(path):
-        shutil.rmtree(path)
-    os.makedirs(path, exist_ok=True)
+
 
 
 create_dir(tmp_dir)
