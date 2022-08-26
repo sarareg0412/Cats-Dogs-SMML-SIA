@@ -12,7 +12,7 @@ from model_testing import create_dir
 from preprocessing import IMGS_PATH
 from keras import layers
 
-BATCH_SIZE = 256
+BATCH_SIZE = 32
 MAX_BATCHES = 25000/BATCH_SIZE
 tmp_dir = 'tmp/'
 
@@ -23,6 +23,15 @@ N_GEN_IMG = 5
 
 NOISE_SHAPE = 100
 SCALE_FACTOR = 4
+
+EPOCHS = 10
+noise_dim = 100
+num_examples_to_generate = 20
+
+# You will reuse this seed overtime (so it's easier)
+# to visualize progress in the animated GIF)
+seed = tf.random.normal([num_examples_to_generate, noise_dim])
+
 gen = ImageDataGenerator(
     rescale = 1/127.,
 )
@@ -190,15 +199,6 @@ checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                  generator=generator,
                                  discriminator=discriminator)
 
-EPOCHS = 3
-noise_dim = 100
-num_examples_to_generate = 16
-
-# You will reuse this seed overtime (so it's easier)
-# to visualize progress in the animated GIF)
-seed = tf.random.normal([num_examples_to_generate, noise_dim])
-
-
 # Notice the use of `tf.function`
 # This annotation causes the function to be "compiled".
 @tf.function
@@ -230,7 +230,8 @@ def generate_and_save_images(model, epoch, test_input):
 
     for i in range(predictions.shape[0]):
         plt.subplot(N_GEN_IMG, N_GEN_IMG, i + 1)
-        plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='rgb')
+        #plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='rgb')
+        plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5)
         plt.axis('off')
 
     plt.savefig(f'{tmp_dir}image_at_epoch_{epoch:04d}.png')
@@ -242,26 +243,27 @@ def train(dataset, epochs):
         start = time.time()
 
         i = 0
-        print(f"Max Batches:{MAX_BATCHES}")
+        print(f"Starting training. Max batches:{MAX_BATCHES}")
         for image_batch in dataset:
-            if i % 30 == 0:
-                print(f"Training step: {i}")
+            if dataset.batch_index != 0 and dataset.batch_index % 100 == 0:
+                print(f"Round:{dataset.batch_index}")
 
-            if i > MAX_BATCHES:
-                print(f"End of training.")
+            # Train the model for each batch in the train set of the fold
+            train_step(image_batch[0])
+            if dataset.batch_index == 0:
+                print("Training finished.")
                 break
-            else:
-                i += 1
-                train_step(image_batch[0])
 
         # Produce images for the GIF as you go
         display.clear_output(wait=True)
+        print("Saving generated image.")
         generate_and_save_images(generator,
                                  epoch + 1,
                                  seed)
 
-        # Save the model every 15 epochs
-        if (epoch + 1) % 15 == 0:
+        # Save the model every 5 epochs
+        if (epoch + 1) % 5 == 0:
+            print("Saving model.")
             checkpoint.save(file_prefix=checkpoint_prefix)
 
         print('Time for epoch {} is {} sec'.format(epoch + 1, time.time() - start))

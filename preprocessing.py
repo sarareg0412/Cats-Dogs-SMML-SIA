@@ -115,7 +115,7 @@ def rm_faulty_images(path: str = None):
 
 gen = ImageDataGenerator(
     rescale = 1/255.,
-    validation_split = 0.5
+#    validation_split = 0.5
 )
 
 train_dataset = gen.flow_from_directory(
@@ -123,17 +123,17 @@ train_dataset = gen.flow_from_directory(
     target_size=SIZE,
     class_mode='binary',
     batch_size=BATCH_SIZE,
-    subset="training",
+#    subset="training",
     seed=123,
     color_mode="rgb"
 )
 
-val_dataset = gen.flow_from_directory(
-    IMGS_PATH,  # Directory where the data is located
-    target_size=SIZE,
-    class_mode='binary',
-    batch_size=BATCH_SIZE,
-    subset="validation",
-    seed=123,
-    color_mode="rgb"
-)
+# val_dataset = gen.flow_from_directory(
+#     IMGS_PATH,  # Directory where the data is located
+#     target_size=SIZE,
+#     class_mode='binary',
+#     batch_size=BATCH_SIZE,
+#     subset="validation",
+#     seed=123,
+#     color_mode="rgb"
+# )

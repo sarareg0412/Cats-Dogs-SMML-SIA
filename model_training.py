@@ -4,7 +4,7 @@ import tensorflow as tf
 from keras_preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import KFold
 from tensorflow import keras
-from preprocessing import train_dataset, val_dataset, BATCH_SIZE, IMGS_PATH, SIZE
+from preprocessing import train_dataset, BATCH_SIZE, IMGS_PATH, SIZE
 
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, \
@@ -21,7 +21,7 @@ import numpy as np
 
 N_OF_FOLDS = 5
 N_OF_EPOCHS = 1
-MAX_BATCHES = len(train_dataset) / BATCH_SIZE
+MAX_BATCHES = 25000 / BATCH_SIZE
 
 def get_model(i: int):
     if i == 1:
@@ -72,7 +72,7 @@ early_stopping = EarlyStopping(monitor='val_loss', patience=15, verbose=0, mode=
 
 
 def get_model_name(i):
-    return 'model_' + str(i) + '.hdf5'
+    return 'model_' + str(i)
 
 
 def k_fold_cross_validation(model_index):
@@ -95,54 +95,54 @@ def k_fold_cross_validation(model_index):
             print(f'Training fold {n_fold} ...')
 
             # TRAINING LOOP
-            i = 0
             print(f"Starting training loop. Max Batches:{MAX_BATCHES}")
             losses = []
             for image_batch in train_dataset:
-                if i % 100 == 0:
-                    print(f"Round:{i}")
+                if train_dataset.batch_index != 0 and train_dataset.batch_index % 100 == 0:
+                    print(f"Round:{train_dataset.batch_index}")
 
-                if i > MAX_BATCHES:
+                # Train the model for each batch in the train set of the fold
+                if train_dataset.batch_index in train:
+                    # This is the equivalent of the model.fit, but done on a series of batches
+                    losses = model.train_on_batch(
+                        image_batch[0],         # Features
+                        image_batch[1],         # Labels
+                        #reset_metrics=False,    # Metrics are accumulated across batches
+                    )
+
+                if train_dataset.batch_index == 0:
+                    print("Training finished.")
                     break
-                else:
-                    i += 1
-                    # Train the model for each batch in the train set of the fold
-                    if train_dataset.batch_index in train:
-                        # This is the equivalent of the model.fit, but done on a series of batches
-                        losses = model.train_on_batch(
-                            image_batch[0],         # Features
-                            image_batch[1],         # Labels
-                            #reset_metrics=False,    # Metrics are accumulated across batches
-                        )
 
             print(f"Training {model.metrics_names} : {losses}")
             TRAINING_LOSSES.append(losses)
 
             # VALIDATION LOOP
-            i = 0
             print(f"Starting validation loop. Max Batches:{MAX_BATCHES}")
             losses = []
             for image_batch in train_dataset:
-                if i % 100 == 0:
-                    print(f"Round:{i}")
 
-                if i > MAX_BATCHES:
+                if train_dataset.batch_index % 100 == 0:
+                    print(f"Round:{train_dataset.batch_index}")
+
+                # Train the model for each batch in the train set of the fold
+                if train_dataset.batch_index in test:
+                    losses = model.test_on_batch(
+                        image_batch[0],
+                        image_batch[1],
+                        reset_metrics=False,  # Metrics are accumulated across batches
+                    )
+
+                if train_dataset.batch_index == 0:
+                    print("Validation finished.")
                     break
-                else:
-                    i += 1
-                    # Train the model for each batch in the train set of the fold
-                    if train_dataset.batch_index in test:
-                        losses = model.test_on_batch(
-                            image_batch[0],
-                            image_batch[1],
-                            reset_metrics=False,  # Metrics are accumulated across batches
-                        )
 
             print(f"Validation {model.metrics_names} : {losses}")
             VALIDATION_LOSSES.append(losses)
             n_fold += 1
 
-        print(f"Epoch {epoch} done.")
+        print(f"Epoch {epoch} done. Saving model")
+        model.save(get_model_name(model_index))
         # History contains validation and training loss for each fold, for each epoch
         HISTORY.append([TRAINING_LOSSES, VALIDATION_LOSSES])
 
