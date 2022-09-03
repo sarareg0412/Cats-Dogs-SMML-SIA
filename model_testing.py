@@ -39,6 +39,12 @@ def plot_scores(histories, model_index):
 
     print("Plots correctly saved.")
 
+def plot_array(array, title, name):
+    plt.title(title)
+    plt.plot(list(range(len(array))), array, color='blue', label='train')
+
+    plt.savefig(f"{name}_plot.png")
+
 # First remove directory, then create it with the passed path
 def create_dir(path):
     if os.path.isdir(path):

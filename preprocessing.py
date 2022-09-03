@@ -125,7 +125,7 @@ train_dataset = gen.flow_from_directory(
     batch_size=BATCH_SIZE,
 #    subset="training",
     seed=123,
-    color_mode="rgb"
+    color_mode="grayscale"
 )
 
 # val_dataset = gen.flow_from_directory(

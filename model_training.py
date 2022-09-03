@@ -22,12 +22,13 @@ import numpy as np
 N_OF_FOLDS = 5
 N_OF_EPOCHS = 1
 MAX_BATCHES = 25000 / BATCH_SIZE
+CHANNELS = 1
 
 def get_model(i: int):
     if i == 1:
         model = Sequential()
 
-        model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(200, 200, 3)))
+        model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(200, 200, CHANNELS)))
         model.add(Activation('relu'))
         model.add(MaxPooling2D(pool_size=(2, 2)))
 
@@ -104,9 +105,11 @@ def k_fold_cross_validation(model_index):
                 # Train the model for each batch in the train set of the fold
                 if train_dataset.batch_index in train:
                     # This is the equivalent of the model.fit, but done on a series of batches
-                    losses = model.train_on_batch(
+                    #losses = model.train_on_batch(
+                    losses = model.fit(
                         image_batch[0],         # Features
                         image_batch[1],         # Labels
+                        verbose=0
                         #reset_metrics=False,    # Metrics are accumulated across batches
                     )
 
