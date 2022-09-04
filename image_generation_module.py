@@ -22,15 +22,15 @@ tmp_dir = 'tmp/'
 IMG_WIDTH = 32
 IMG_HEIGHT = 32
 
-N_GEN_IMG = 5
+N_GEN_IMG = 4
 
 NOISE_SHAPE = 100
-SCALE_FACTOR = 16
+SCALE_FACTOR = 4
 RESCALING_FACTOR = 127.5
 
 EPOCHS = 1
 noise_dim = 100
-num_examples_to_generate = 20
+num_examples_to_generate = 16
 disc_losses = []
 # You will reuse this seed overtime (so it's easier)
 # to visualize progress in the animated GIF)
@@ -38,7 +38,7 @@ seed = tf.random.normal([num_examples_to_generate, noise_dim])
 
 gen = ImageDataGenerator(
     rescale = 1/RESCALING_FACTOR,
-    dtype='float32'
+    #dtype='float32'
 )
 
 train_dataset = gen.flow_from_directory(
@@ -58,7 +58,7 @@ weight_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.2, mean=0.0,
 # Used to produce images from a seed.
 # The Generator network takes as input a simple random noise N-dimensional vector
 # and transforms it according to a learned target distribution.
-def make_generator_model1():
+def make_generator_model():
     model = tf.keras.Sequential()
 
     model.add(layers.Dense(IMG_WIDTH // SCALE_FACTOR * IMG_WIDTH // SCALE_FACTOR * 256, use_bias=False, input_shape=(NOISE_SHAPE,)))
@@ -86,7 +86,7 @@ def make_generator_model1():
     return model
 
 
-def make_generator_model():
+def make_generator_model1():
     model = tf.keras.Sequential()
     model.add(layers.Dense(IMG_WIDTH // SCALE_FACTOR * IMG_WIDTH // SCALE_FACTOR * 128,
                     input_shape=(NOISE_SHAPE,), kernel_initializer=weight_initializer))
@@ -118,7 +118,7 @@ def transposed_conv(model, out_channels, ksize, stride_size, ptype='same'):
 
 # CNN-based image classifier
 # The discriminator outputs a probability that the input image is real or fake [0, 1].
-def make_discriminator_model1():
+def make_discriminator_model():
     model = tf.keras.Sequential()
 
     model.add(layers.Conv2D(64, (5, 5), strides=(2, 2), padding='same',
@@ -136,7 +136,7 @@ def make_discriminator_model1():
     return model
 
 
-def make_discriminator_model():
+def make_discriminator_model1():
     model = tf.keras.Sequential()
     model.add(layers.Conv2D(64, (5, 5), strides=(1, 1), padding='same', use_bias=False,
                        input_shape=[IMG_HEIGHT, IMG_WIDTH, 1],

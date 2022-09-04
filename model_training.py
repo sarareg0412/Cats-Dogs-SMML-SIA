@@ -23,12 +23,14 @@ N_OF_FOLDS = 5
 N_OF_EPOCHS = 1
 MAX_BATCHES = 25000 / BATCH_SIZE
 CHANNELS = 1
+IMG_HEIGHT = 128
+IMG_WIDTH = 128
 
 def get_model(i: int):
     if i == 1:
         model = Sequential()
 
-        model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(200, 200, CHANNELS)))
+        model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS)))
         model.add(Activation('relu'))
         model.add(MaxPooling2D(pool_size=(2, 2)))
 
@@ -68,8 +70,8 @@ def get_model(i: int):
 #     callbacks=[mcp_save, reduce_lr_loss, early_stopping],
 # )
 
-reduce_lr_loss = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='min')
-early_stopping = EarlyStopping(monitor='val_loss', patience=15, verbose=0, mode='min')
+reduce_lr_loss = ReduceLROnPlateau(monitor='loss', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='min')
+early_stopping = EarlyStopping(monitor='loss', patience=15, verbose=0, mode='min')
 
 
 def get_model_name(i):
@@ -98,9 +100,11 @@ def k_fold_cross_validation(model_index):
             # TRAINING LOOP
             print(f"Starting training loop. Max Batches:{MAX_BATCHES}")
             losses = []
+
             for image_batch in train_dataset:
                 if train_dataset.batch_index != 0 and train_dataset.batch_index % 100 == 0:
                     print(f"Round:{train_dataset.batch_index}")
+
 
                 # Train the model for each batch in the train set of the fold
                 if train_dataset.batch_index in train:
@@ -109,8 +113,9 @@ def k_fold_cross_validation(model_index):
                     losses = model.fit(
                         image_batch[0],         # Features
                         image_batch[1],         # Labels
-                        verbose=0
-                        #reset_metrics=False,    # Metrics are accumulated across batches
+                        verbose=1,
+                        steps_per_epoch=BATCH_SIZE,
+                        callbacks=[reduce_lr_loss,early_stopping],
                     )
 
                 if train_dataset.batch_index == 0:
@@ -130,10 +135,11 @@ def k_fold_cross_validation(model_index):
 
                 # Train the model for each batch in the train set of the fold
                 if train_dataset.batch_index in test:
-                    losses = model.test_on_batch(
+                    losses = model.evaluate(
                         image_batch[0],
                         image_batch[1],
-                        reset_metrics=False,  # Metrics are accumulated across batches
+                        verbose=1,
+                        callbacks=[reduce_lr_loss, early_stopping],
                     )
 
                 if train_dataset.batch_index == 0:

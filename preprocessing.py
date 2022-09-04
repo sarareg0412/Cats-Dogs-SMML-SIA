@@ -17,7 +17,7 @@ DOGS_IMGS_PATH = "../CatsDogs/Dogs/"
 SUBDIRS = ["./images/test/", "./images/train/"]
 CATS = "Cats"
 DOGS = "Dogs"
-SIZE = (200, 200)
+SIZE = (128 , 128)
 
 BATCH_SIZE = 64
 # matches any string with the substring ".<digits>."
