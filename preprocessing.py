@@ -3,6 +3,7 @@ import glob
 import re
 import shutil
 import warnings
+from builtins import float
 
 import h5py
 import numpy as np
@@ -113,27 +114,32 @@ def rm_faulty_images(path: str = None):
 #restore(DOGS)
 #rm_faulty_images(IMGS_PATH)
 
-gen = ImageDataGenerator(
-    rescale = 1/255.,
-#    validation_split = 0.5
-)
+def get_train_and_val_dataset(rescale:float , size:(int, int), batch_size: int, validation: float):
 
-train_dataset = gen.flow_from_directory(
-    IMGS_PATH,  # Directory where the data is located
-    target_size=SIZE,
-    class_mode='binary',
-    batch_size=BATCH_SIZE,
-#    subset="training",
-    seed=123,
-    color_mode="grayscale"
-)
+    gen = ImageDataGenerator(
+        rescale = 1/rescale,
+        validation_split = validation
+    )
 
-# val_dataset = gen.flow_from_directory(
-#     IMGS_PATH,  # Directory where the data is located
-#     target_size=SIZE,
-#     class_mode='binary',
-#     batch_size=BATCH_SIZE,
-#     subset="validation",
-#     seed=123,
-#     color_mode="rgb"
-# )
+    train_dataset = gen.flow_from_directory(
+        IMGS_PATH,  # Directory where the data is located
+        target_size=size,
+        class_mode='binary',
+        batch_size=batch_size,
+        subset="training",
+        seed=123,
+        color_mode="grayscale"
+    )
+
+    val_dataset = gen.flow_from_directory(
+        IMGS_PATH,  # Directory where the data is located
+        target_size=size,
+        class_mode='binary',
+        batch_size=batch_size,
+        subset="validation",
+        seed=123,
+        color_mode="grayscale"
+    )
+
+    return train_dataset, val_dataset
+

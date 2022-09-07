@@ -1,21 +1,18 @@
 import glob
 import os
 import time
-import h5py
-import numpy as np
 from IPython import display
 import imageio
 import tensorflow as tf
-from keras_preprocessing.image import ImageDataGenerator
 from matplotlib import pyplot as plt
 from model_testing import create_dir, plot_array
-from preprocessing import IMGS_PATH
+from preprocessing import IMGS_PATH, get_train_and_val_dataset
 from keras import layers
 from tensorflow.python.ops.numpy_ops import np_config
 
 np_config.enable_numpy_behavior()
 
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 MAX_BATCHES = 25000/BATCH_SIZE
 tmp_dir = 'tmp/'
 
@@ -36,24 +33,20 @@ disc_losses = []
 # to visualize progress in the animated GIF)
 seed = tf.random.normal([num_examples_to_generate, noise_dim])
 
-gen = ImageDataGenerator(
-    rescale = 1/RESCALING_FACTOR,
-    #dtype='float32'
-)
+# gen = ImageDataGenerator(
+#     rescale = 1/RESCALING_FACTOR,
+#     #dtype='float32'
+# )
+#
+# train_dataset = gen.flow_from_directory(
+#     IMGS_PATH,  # Directory where the data is located
+#     target_size=(IMG_WIDTH,IMG_HEIGHT),
+#     class_mode='binary',
+#     batch_size=BATCH_SIZE,
+#     seed=123,
+#     color_mode="grayscale"
+# )
 
-train_dataset = gen.flow_from_directory(
-    IMGS_PATH,  # Directory where the data is located
-    target_size=(IMG_WIDTH,IMG_HEIGHT),
-    class_mode='binary',
-    batch_size=BATCH_SIZE,
-    seed=123,
-    color_mode="grayscale"
-)
-
-
-# Could add a Data Augmentation step
-
-weight_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.2, mean=0.0, seed=42)
 
 # Used to produce images from a seed.
 # The Generator network takes as input a simple random noise N-dimensional vector
@@ -296,7 +289,14 @@ def create_gif():
 
 
 
+train_dataset, val_dataset = get_train_and_val_dataset(rescale=RESCALING_FACTOR,
+                                                        size = (IMG_WIDTH, IMG_HEIGHT),
+                                                        batch_size=BATCH_SIZE,
+                                                        validation=0.2)
 
+# Could add a Data Augmentation step
+
+weight_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.2, mean=0.0, seed=42)
 create_dir(tmp_dir)
 print("Starting training.")
 train(train_dataset, EPOCHS)
