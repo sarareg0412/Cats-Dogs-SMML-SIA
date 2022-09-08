@@ -12,7 +12,7 @@ from tensorflow.python.ops.numpy_ops import np_config
 
 np_config.enable_numpy_behavior()
 
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 MAX_BATCHES = 25000/BATCH_SIZE
 tmp_dir = 'tmp/'
 
@@ -20,33 +20,17 @@ IMG_WIDTH = 32
 IMG_HEIGHT = 32
 
 N_GEN_IMG = 4
-
 NOISE_SHAPE = 100
 SCALE_FACTOR = 4
 RESCALING_FACTOR = 127.5
 
-EPOCHS = 1
+EPOCHS = 10
 noise_dim = 100
 num_examples_to_generate = 16
-disc_losses = []
+
 # You will reuse this seed overtime (so it's easier)
 # to visualize progress in the animated GIF)
 seed = tf.random.normal([num_examples_to_generate, noise_dim])
-
-# gen = ImageDataGenerator(
-#     rescale = 1/RESCALING_FACTOR,
-#     #dtype='float32'
-# )
-#
-# train_dataset = gen.flow_from_directory(
-#     IMGS_PATH,  # Directory where the data is located
-#     target_size=(IMG_WIDTH,IMG_HEIGHT),
-#     class_mode='binary',
-#     batch_size=BATCH_SIZE,
-#     seed=123,
-#     color_mode="grayscale"
-# )
-
 
 # Used to produce images from a seed.
 # The Generator network takes as input a simple random noise N-dimensional vector
@@ -212,7 +196,6 @@ def train_step(images):
         gen_loss = generator_loss(fake_output)
         disc_loss = discriminator_loss(real_output, fake_output)
 
-    disc_losses.append(disc_loss)
     gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
     gradients_of_discriminator = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
 

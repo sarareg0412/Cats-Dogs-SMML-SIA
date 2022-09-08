@@ -91,7 +91,7 @@ def get_model(i: int):
 
 reduce_lr_loss = ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='min')
 early_stopping = EarlyStopping(monitor='val_accuracy', patience=15, verbose=0, mode='min')
-
+mcp_save = ModelCheckpoint('.mdl_wts.hdf5', save_best_only=True, monitor='val_loss', mode='min')
 
 def get_model_name(i):
     return 'model_' + str(i)
@@ -144,7 +144,7 @@ def k_fold_cross_validation(model_index):
             batch_size=BATCH_SIZE,
             verbose=1,
             epochs=N_OF_EPOCHS,
-            callbacks=[reduce_lr_loss, early_stopping],
+            callbacks=[reduce_lr_loss, early_stopping, mcp_save],
         )
 
         print(f"Training {model.metrics_names} : {history.history}")
