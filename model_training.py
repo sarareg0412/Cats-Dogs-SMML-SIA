@@ -3,7 +3,7 @@ import os
 import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import KFold
-from preprocessing import get_train_and_val_dataset
+from preprocessing import get_train_and_val_dataset, get_train_and_val_dataset_IDG
 
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, \
@@ -12,9 +12,8 @@ from keras.layers import Conv2D, MaxPooling2D, \
 
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
 from model_testing import plot_scores
-import torch
 
-#os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
+# os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
 
 BATCH_SIZE = 32
 N_OF_FOLDS = 5
@@ -24,11 +23,13 @@ CHANNELS = 1
 IMG_HEIGHT = 50
 IMG_WIDTH = 50
 
+
+# Returns the model chosen based on the index
 def get_model(i: int):
     if i == 1:
         model = Sequential()
 
-        model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS), name = 'conv0'))
+        model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS), name='conv0'))
         model.add(Activation('relu'))
         model.add(MaxPooling2D(pool_size=(2, 2), name='max_pool0'))
 
@@ -93,12 +94,8 @@ reduce_lr_loss = ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=
 early_stopping = EarlyStopping(monitor='val_accuracy', patience=15, verbose=0, mode='min')
 mcp_save = ModelCheckpoint('.mdl_wts.hdf5', save_best_only=True, monitor='val_loss', mode='min')
 
-def get_model_name(i):
-    return 'model_' + str(i)
-
 
 def k_fold_cross_validation(model_index):
-
     HISTORY = []
     model = get_model(model_index)
     n_fold = 1
@@ -107,7 +104,7 @@ def k_fold_cross_validation(model_index):
     # Kfold training loop
     for train, test in k_fold.split(train_dataset):
         print(f'---------------------------- FOLD {n_fold} ----------------------------')
-        X_train, y_train, X_test, y_test = None,None,None,None
+        X_train, y_train, X_test, y_test = None, None, None, None
 
         print(f"Starting folded datasets generation. Max Batches:{MAX_BATCHES}")
         for image_batch in train_dataset:
@@ -123,15 +120,15 @@ def k_fold_cross_validation(model_index):
                     X_train = np.array(image_batch[0])
                     y_train = np.array(image_batch[1])
                 else:
-                    X_train = np.insert(X_train, 1, np.array(image_batch[0]), axis = 0)
-                    y_train = np.insert(y_train, 1, np.array(image_batch[1]), axis = 0)
+                    X_train = np.insert(X_train, 1, np.array(image_batch[0]), axis=0)
+                    y_train = np.insert(y_train, 1, np.array(image_batch[1]), axis=0)
             else:
                 if X_test is None:
                     X_test = np.array(image_batch[0])
                     y_test = np.array(image_batch[1])
                 else:
-                    X_test = np.insert(X_test, 1, np.array(image_batch[0]), axis = 0)
-                    y_test = np.insert(y_test, 1, np.array(image_batch[1]), axis = 0)
+                    X_test = np.insert(X_test, 1, np.array(image_batch[0]), axis=0)
+                    y_test = np.insert(y_test, 1, np.array(image_batch[1]), axis=0)
 
         # TRAINING AND VALIDATION LOOP
         print(f'Starting training for fold {n_fold} ...')
@@ -154,8 +151,8 @@ def k_fold_cross_validation(model_index):
     return HISTORY
 
 
-train_dataset, val_dataset = get_train_and_val_dataset( rescale=255.,
-                                                        size = (IMG_WIDTH, IMG_HEIGHT),
-                                                        batch_size=BATCH_SIZE,
-                                                        validation=0.0)
+train_dataset, val_dataset = get_train_and_val_dataset_IDG(rescale=255.,
+                                                           size=(IMG_WIDTH, IMG_HEIGHT),
+                                                           batch_size=BATCH_SIZE,
+                                                           validation=0.0)
 plot_scores(k_fold_cross_validation(1), 1)

@@ -5,15 +5,15 @@ from IPython import display
 import imageio
 import tensorflow as tf
 from matplotlib import pyplot as plt
-from model_testing import create_dir, plot_array
-from preprocessing import IMGS_PATH, get_train_and_val_dataset
+from model_testing import create_dir
+from preprocessing import get_train_and_val_dataset
 from keras import layers
 from tensorflow.python.ops.numpy_ops import np_config
 
 np_config.enable_numpy_behavior()
 
 BATCH_SIZE = 32
-MAX_BATCHES = 25000/BATCH_SIZE
+MAX_BATCHES = 25000 / BATCH_SIZE
 tmp_dir = 'tmp/'
 
 IMG_WIDTH = 32
@@ -32,18 +32,21 @@ num_examples_to_generate = 16
 # to visualize progress in the animated GIF)
 seed = tf.random.normal([num_examples_to_generate, noise_dim])
 
+
 # Used to produce images from a seed.
 # The Generator network takes as input a simple random noise N-dimensional vector
 # and transforms it according to a learned target distribution.
 def make_generator_model():
     model = tf.keras.Sequential()
 
-    model.add(layers.Dense(IMG_WIDTH // SCALE_FACTOR * IMG_WIDTH // SCALE_FACTOR * 256, use_bias=False, input_shape=(NOISE_SHAPE,)))
+    model.add(layers.Dense(IMG_WIDTH // SCALE_FACTOR * IMG_WIDTH // SCALE_FACTOR * 256, use_bias=False,
+                           input_shape=(NOISE_SHAPE,)))
     model.add(layers.BatchNormalization())
     model.add(layers.ReLU())
 
     model.add(layers.Reshape((IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)))
-    assert model.output_shape == (None, IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)  # Note: None is the batch size
+    assert model.output_shape == (
+    None, IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)  # Note: None is the batch size
     model.add(layers.Dropout(0.4))
 
     model.add(layers.Conv2DTranspose(128, (5, 5), strides=(1, 1), padding='same', use_bias=False))
@@ -53,12 +56,12 @@ def make_generator_model():
     model.add(layers.Dropout(0.4))
 
     model.add(layers.Conv2DTranspose(64, (5, 5), strides=(2, 2), padding='same', use_bias=False))
-    #assert model.output_shape == (None, 14, 14, 64)
+    # assert model.output_shape == (None, 14, 14, 64)
     model.add(layers.BatchNormalization())
     model.add(layers.ReLU())
 
     model.add(layers.Conv2DTranspose(1, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh'))
-    #assert model.output_shape == (None, 28, 28, 1)
+    # assert model.output_shape == (None, 28, 28, 1)
 
     return model
 
@@ -66,7 +69,7 @@ def make_generator_model():
 def make_generator_model1():
     model = tf.keras.Sequential()
     model.add(layers.Dense(IMG_WIDTH // SCALE_FACTOR * IMG_WIDTH // SCALE_FACTOR * 128,
-                    input_shape=(NOISE_SHAPE,), kernel_initializer=weight_initializer))
+                           input_shape=(NOISE_SHAPE,), kernel_initializer=weight_initializer))
     # model.add(BatchNormalization(epsilon=BN_EPSILON, momentum=BN_MOMENTUM))
     # model.add(LeakyReLU(alpha=leaky_relu_slope))
     model.add(layers.Reshape((IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 128)))
@@ -86,8 +89,8 @@ def make_generator_model1():
 
 def transposed_conv(model, out_channels, ksize, stride_size, ptype='same'):
     model.add(layers.Conv2DTranspose(out_channels, (ksize, ksize),
-                              strides=(stride_size, stride_size), padding=ptype,
-                              kernel_initializer=weight_initializer, use_bias=False))
+                                     strides=(stride_size, stride_size), padding=ptype,
+                                     kernel_initializer=weight_initializer, use_bias=False))
     model.add(layers.BatchNormalization())
     model.add(layers.ReLU())
     return model
@@ -116,8 +119,8 @@ def make_discriminator_model():
 def make_discriminator_model1():
     model = tf.keras.Sequential()
     model.add(layers.Conv2D(64, (5, 5), strides=(1, 1), padding='same', use_bias=False,
-                       input_shape=[IMG_HEIGHT, IMG_WIDTH, 1],
-                       kernel_initializer=weight_initializer))
+                            input_shape=[IMG_HEIGHT, IMG_WIDTH, 1],
+                            kernel_initializer=weight_initializer))
     # model.add(BatchNormalization(epsilon=BN_EPSILON, momentum=BN_MOMENTUM))
     model.add(layers.LeakyReLU())
     # model.add(Dropout(dropout_rate))
@@ -138,10 +141,10 @@ def make_discriminator_model1():
 
 def convSN(model, out_channels, ksize, stride_size):
     model.add(layers.Conv2D(out_channels, (ksize, ksize), strides=(stride_size, stride_size), padding='same',
-                     kernel_initializer=weight_initializer, use_bias=False))
+                            kernel_initializer=weight_initializer, use_bias=False))
     model.add(layers.BatchNormalization())
     model.add(layers.LeakyReLU())
-    #model.add(Dropout(dropout_rate))
+    # model.add(Dropout(dropout_rate))
     return model
 
 
@@ -161,12 +164,12 @@ def generator_loss(fake_output):
 generator = make_generator_model()
 
 noise = tf.random.normal([1, 100])
-#generated_image = generator(noise, training=False)
+# generated_image = generator(noise, training=False)
 
-#plt.imshow(generated_image[0, :, :, 0], cmap='gray')
+# plt.imshow(generated_image[0, :, :, 0], cmap='gray')
 discriminator = make_discriminator_model()
-#decision = discriminator(generated_image)
-#print (decision)
+# decision = discriminator(generated_image)
+# print (decision)
 
 # This method returns a helper function to compute cross entropy loss
 cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
@@ -180,6 +183,7 @@ checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                  discriminator_optimizer=discriminator_optimizer,
                                  generator=generator,
                                  discriminator=discriminator)
+
 
 # Notice the use of `tf.function`
 # This annotation causes the function to be "compiled".
@@ -213,11 +217,11 @@ def generate_and_save_images(model, epoch, test_input):
     for i in range(predictions.shape[0]):
         plt.subplot(N_GEN_IMG, N_GEN_IMG, i + 1)
         plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
-        #plt.imshow((predictions[i, :, :, :] * 127.5 + 127.5), interpolation='nearest')
+        # plt.imshow((predictions[i, :, :, :] * 127.5 + 127.5), interpolation='nearest')
         plt.axis('off')
 
     plt.savefig(f'{tmp_dir}image_at_epoch_{epoch:04d}.png')
-    #plt.show()
+    # plt.show()
 
 
 def train(dataset, epochs):
@@ -246,7 +250,7 @@ def train(dataset, epochs):
         if (epoch + 1) % 15 == 0:
             print("Saving model and discriminator losses.")
             checkpoint.save(file_prefix=checkpoint_prefix)
-            #plot_array(disc_losses, "Discriminator loss", "disc_losses")
+            # plot_array(disc_losses, "Discriminator loss", "disc_losses")
 
         print('Time for epoch {} is {} sec'.format(epoch + 1, time.time() - start))
 
@@ -259,6 +263,7 @@ def train(dataset, epochs):
 
 anim_file = 'dcgan.gif'
 
+
 def create_gif():
     with imageio.get_writer(anim_file, mode='I') as writer:
         filenames = glob.glob(f'{tmp_dir}image*.png')
@@ -270,12 +275,10 @@ def create_gif():
         writer.append_data(image)
 
 
-
-
 train_dataset, val_dataset = get_train_and_val_dataset(rescale=RESCALING_FACTOR,
-                                                        size = (IMG_WIDTH, IMG_HEIGHT),
-                                                        batch_size=BATCH_SIZE,
-                                                        validation=0.2)
+                                                       size=(IMG_WIDTH, IMG_HEIGHT),
+                                                       batch_size=BATCH_SIZE,
+                                                       validation=0.2)
 
 # Could add a Data Augmentation step
 
@@ -287,6 +290,3 @@ print("Training completed.")
 print("Creating GIF of saved images.")
 create_gif()
 print("Done.")
-
-
-

@@ -18,7 +18,7 @@ DOGS_IMGS_PATH = "../CatsDogs/Dogs/"
 SUBDIRS = ["./images/test/", "./images/train/"]
 CATS = "Cats"
 DOGS = "Dogs"
-SIZE = (128 , 128)
+SIZE = (128, 128)
 
 BATCH_SIZE = 64
 # matches any string with the substring ".<digits>."
@@ -55,16 +55,16 @@ def restore(dirname):
     and you might need it if you want to try training the network
     without the cleaning of bad images
     '''
-    #os.chdir(IMGS_PATH)
-    #oldpwd = os.getcwd()
-    #os.chdir(dirname)
+    # os.chdir(IMGS_PATH)
+    # oldpwd = os.getcwd()
+    # os.chdir(dirname)
     trash = trash_path(dirname)
-    #print(trash)
+    # print(trash)
     for fname in os.listdir(trash):
         trash_name = os.path.join(trash, fname)
         print('restoring', trash_name)
-        shutil.move(trash_name, IMGS_PATH+dirname+"/"+fname)
-    #os.chdir(oldpwd)
+        shutil.move(trash_name, IMGS_PATH + dirname + "/" + fname)
+    # os.chdir(oldpwd)
 
 
 def rm_faulty_images(path: str = None):
@@ -110,15 +110,34 @@ def rm_faulty_images(path: str = None):
             print(f"Moving image: {path} to Trash")
             shutil.move(f"{path}", f"{TRASH_PATH}{path[len(IMGS_PATH):]}")
 
-#restore(CATS)
-#restore(DOGS)
-#rm_faulty_images(IMGS_PATH)
 
-def get_train_and_val_dataset(rescale:float , size:(int, int), batch_size: int, validation: float):
+# restore(CATS)
+# restore(DOGS)
+# rm_faulty_images(IMGS_PATH)
 
+def get_train_and_val_dataset(rescale: float, size: (int, int), batch_size: int):
+    normalization_layer = tf.keras.layers.Rescaling(1. / rescale)
+
+    train_dataset = tf.keras.utils.image_dataset_from_directory(
+        IMGS_PATH,                  # Directory where the data is located
+        labels='inferred',
+        label_mode='binary',
+        color_mode="grayscale",
+        batch_size=batch_size,
+        image_size=size,
+        seed=123,
+        interpolation='nearest'
+    )
+
+    normalized_train_ds = train_dataset.map(lambda x, y: (normalization_layer(x), y))
+
+    return normalized_train_ds
+
+
+def get_train_and_val_dataset_IDG(rescale: float, size: (int, int), batch_size: int, validation: float):
     gen = ImageDataGenerator(
-        rescale = 1/rescale,
-        validation_split = validation
+        rescale=1 / rescale,
+        validation_split=validation
     )
 
     train_dataset = gen.flow_from_directory(
@@ -142,4 +161,3 @@ def get_train_and_val_dataset(rescale:float , size:(int, int), batch_size: int, 
     )
 
     return train_dataset, val_dataset
-
