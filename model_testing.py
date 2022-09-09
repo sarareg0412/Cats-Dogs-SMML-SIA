@@ -3,16 +3,15 @@ import shutil
 import sys
 
 import matplotlib.pyplot as plt
-import numpy as np
+
 
 N_OF_FOLDS = 5
 EPOCHS = 2
-SAVE_PLOT_DIR = "plots/"
 
 
-def plot_scores(histories, model_index):
+def plot_scores(histories, model_index, save_plot_dir):
 
-    create_dir(SAVE_PLOT_DIR)
+    create_dir(save_plot_dir)
     acc, loss, val_acc, val_loss, accs = [], [], [], [], []
 
     # For each fold there are N_EPOCH values of training loss, validation loss,
@@ -42,7 +41,7 @@ def plot_scores(histories, model_index):
         axis[1].set_xlabel("Epoch")
         axis[1].legend(loc='lower right')
 
-        plt.savefig(f"{SAVE_PLOT_DIR}model{model_index}_fold{i}_total_plot.png")
+        plt.savefig(f"{save_plot_dir}model{model_index}_fold{i}_total_plot.png")
 
     # accs contains the average of the validation accuracy for each fold
     for i in range(N_OF_FOLDS):
@@ -54,7 +53,7 @@ def plot_scores(histories, model_index):
     plt.title('Average accuracy')
     plt.ylabel("Accuracy value")
     plt.xlabel("Epoch")
-    plt.savefig(f"{SAVE_PLOT_DIR}model{model_index}_K_fold_accuracy_plot.png")
+    plt.savefig(f"{save_plot_dir}model{model_index}_K_fold_accuracy_plot.png")
     print("Plots correctly saved.")
 
 

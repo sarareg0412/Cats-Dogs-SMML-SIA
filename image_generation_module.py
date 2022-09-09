@@ -6,7 +6,7 @@ import imageio
 import tensorflow as tf
 from matplotlib import pyplot as plt
 from model_testing import create_dir
-from preprocessing import get_train_and_val_dataset
+from preprocessing import get_train_and_val_dataset_IDG
 from keras import layers
 from tensorflow.python.ops.numpy_ops import np_config
 
@@ -14,6 +14,7 @@ np_config.enable_numpy_behavior()
 
 BATCH_SIZE = 32
 MAX_BATCHES = 25000 / BATCH_SIZE
+img_gen_dir = 'img_gen/'
 tmp_dir = 'tmp/'
 
 IMG_WIDTH = 32
@@ -24,13 +25,14 @@ NOISE_SHAPE = 100
 SCALE_FACTOR = 4
 RESCALING_FACTOR = 127.5
 
-EPOCHS = 10
+EPOCHS = 1
 noise_dim = 100
 num_examples_to_generate = 16
 
 # You will reuse this seed overtime (so it's easier)
 # to visualize progress in the animated GIF)
 seed = tf.random.normal([num_examples_to_generate, noise_dim])
+weight_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.2, mean=0.0, seed=42)
 
 
 # Used to produce images from a seed.
@@ -45,12 +47,11 @@ def make_generator_model():
     model.add(layers.ReLU())
 
     model.add(layers.Reshape((IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)))
-    assert model.output_shape == (
-    None, IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)  # Note: None is the batch size
+    #assert model.output_shape == (None, IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)  # Note: None is the batch size
     model.add(layers.Dropout(0.4))
 
     model.add(layers.Conv2DTranspose(128, (5, 5), strides=(1, 1), padding='same', use_bias=False))
-    assert model.output_shape == (None, IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 128)
+    #assert model.output_shape == (None, IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 128)
     model.add(layers.BatchNormalization())
     model.add(layers.ReLU())
     model.add(layers.Dropout(0.4))
@@ -177,8 +178,8 @@ cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 generator_optimizer = tf.keras.optimizers.Adam(1e-4)
 discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
 
-checkpoint_dir = './training_checkpoints'
-checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+checkpoint_dir = '/training_checkpoints'
+checkpoint_prefix = os.path.join(img_gen_dir + checkpoint_dir, "ckpt")
 checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                  discriminator_optimizer=discriminator_optimizer,
                                  generator=generator,
@@ -220,7 +221,7 @@ def generate_and_save_images(model, epoch, test_input):
         # plt.imshow((predictions[i, :, :, :] * 127.5 + 127.5), interpolation='nearest')
         plt.axis('off')
 
-    plt.savefig(f'{tmp_dir}image_at_epoch_{epoch:04d}.png')
+    plt.savefig(f'{img_gen_dir}{tmp_dir}image_at_epoch_{epoch:04d}.png')
     # plt.show()
 
 
@@ -228,15 +229,15 @@ def train(dataset, epochs):
     for epoch in range(epochs):
         start = time.time()
 
-        print(f"Starting training for epoch {epoch}. Max batches:{MAX_BATCHES}")
+        print(f"Starting training for epoch {epoch+1}/{EPOCHS}. Max batches:{MAX_BATCHES}")
         for image_batch in dataset:
-            if dataset.batch_index != 0 and dataset.batch_index % 100 == 0:
-                print(f"Round:{dataset.batch_index}")
+            # if dataset.batch_index != 0 and dataset.batch_index % 100 == 0:
+            #     print(f"Round:{dataset.batch_index}")
 
             # Train the model for each batch in the train set of the fold
             train_step(image_batch[0])
             if dataset.batch_index == 0:
-                print(f"Training finished for epoch {epoch}.")
+                print(f"Training finished for epoch {epoch+1}.")
                 break
 
         # Produce images for the GIF as you go
@@ -266,27 +267,35 @@ anim_file = 'dcgan.gif'
 
 def create_gif():
     with imageio.get_writer(anim_file, mode='I') as writer:
-        filenames = glob.glob(f'{tmp_dir}image*.png')
+        filenames = glob.glob(f'{img_gen_dir}{tmp_dir}image*.png')
         filenames = sorted(filenames)
+
         for filename in filenames:
             image = imageio.imread(filename)
             writer.append_data(image)
+
         image = imageio.imread(filename)
         writer.append_data(image)
 
 
-train_dataset, val_dataset = get_train_and_val_dataset(rescale=RESCALING_FACTOR,
-                                                       size=(IMG_WIDTH, IMG_HEIGHT),
-                                                       batch_size=BATCH_SIZE,
-                                                       validation=0.2)
+train_dataset, val_dataset = get_train_and_val_dataset_IDG(rescale=RESCALING_FACTOR,
+                                                           size=(IMG_WIDTH, IMG_HEIGHT),
+                                                           batch_size=BATCH_SIZE,
+                                                           validation=0.0)
+
 
 # Could add a Data Augmentation step
+def start():
+    create_dir(img_gen_dir)
+    create_dir(img_gen_dir + tmp_dir)
+    print("Starting training.")
+    train(train_dataset, EPOCHS)
+    print("Training completed.")
+    print("Creating GIF of saved images.")
+    create_gif()
+    print("Done.")
 
-weight_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.2, mean=0.0, seed=42)
-create_dir(tmp_dir)
-print("Starting training.")
-train(train_dataset, EPOCHS)
-print("Training completed.")
-print("Creating GIF of saved images.")
-create_gif()
-print("Done.")
+
+start()
+
+
