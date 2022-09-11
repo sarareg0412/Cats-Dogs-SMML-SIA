@@ -92,8 +92,8 @@ def get_model(i: int):
         return model
 
 
-reduce_lr_loss = ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='min')
-early_stopping = EarlyStopping(monitor='val_accuracy', patience=15, verbose=0, mode='min')
+reduce_lr_acc = ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='max')
+early_stopping = EarlyStopping(monitor='val_accuracy', patience=15, verbose=0, mode='max')
 
 
 def get_model_name(i):
@@ -108,8 +108,8 @@ def k_fold_cross_validation(model_index):
     # Create callback to save model for current fold
     mcp_save = ModelCheckpoint(bin_class_dir + get_model_name(model_index),
                                save_best_only=True,
-                               monitor='val_loss',
-                               mode='min',
+                               monitor='val_accuracy',
+                               mode='max',
                                verbose=1)
     # Kfold training loop
     for train, test in k_fold.split(train_dataset):
@@ -151,7 +151,7 @@ def k_fold_cross_validation(model_index):
             batch_size=BATCH_SIZE,
             verbose=1,
             epochs=N_OF_EPOCHS,
-            callbacks=[reduce_lr_loss, early_stopping, mcp_save],
+            callbacks=[reduce_lr_acc, early_stopping, mcp_save],
         )
 
         print(f"Training {model.metrics_names} : {history.history}")
