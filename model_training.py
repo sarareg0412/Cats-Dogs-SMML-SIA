@@ -1,7 +1,9 @@
-import os
-
 import numpy as np
 import tensorflow as tf
+import torch.nn
+from keras import Model, Input
+from keras.applications import vgg16
+from keras.applications.resnet import ResNet, ResNet50
 from sklearn.model_selection import KFold
 from preprocessing import get_train_and_val_dataset, get_train_and_val_dataset_IDG
 
@@ -13,6 +15,7 @@ from keras.layers import Conv2D, MaxPooling2D, \
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
 from model_testing import plot_scores, create_dir
 
+import timm
 # os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
 
 BATCH_SIZE = 32
@@ -29,6 +32,27 @@ save_plot_dir = "plots/"
 # Returns the model chosen based on the index
 def get_model(i: int):
     if i == 1:
+        # This model has a single, fully connected hidden layer
+        model = Sequential()
+        # Specify the shape of the input
+        model.add(Input(shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS), name="input_layer"))
+        model.add(Flatten(name='flatten_hidden_Layer'))
+        model.add(Dense(1024, activation='relu', name='hidden_Layer'))
+        model.add(Dense(1, activation='sigmoid', name='output_Layer'))
+
+        adam_optimizer = tf.optimizers.Adam(learning_rate=0.001)
+
+        model.compile(
+            optimizer=adam_optimizer,
+            loss='binary_crossentropy',
+            metrics=['accuracy']
+        )
+
+        model.summary()
+        return model
+
+    if i == 2:
+        #Convolutional NN
         model = Sequential()
 
         model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS), name='conv0'))
@@ -51,7 +75,6 @@ def get_model(i: int):
         model.add(Dense(1))
 
         model.add(Activation('sigmoid'))
-
         adam_optimizer = tf.optimizers.Adam(learning_rate=0.001)
 
         model.compile(
@@ -60,36 +83,33 @@ def get_model(i: int):
             metrics=['accuracy']
         )
 
-        # model.summary()
+        model.summary()
         return model
 
-    if i == 2:
-        model = Sequential()
+    if i == 3:
 
-        model.add(Conv2D(32, (5, 5), strides=(1, 1), name='conv0', input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS)))
+        vgg16_model = vgg16.VGG16(weights='imagenet', include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, 3))
+        custom_model = Sequential()
 
-        model.add(BatchNormalization(axis=3, name='bn0'))
-        model.add(Activation('relu'))
+        for layer in vgg16_model.layers[:-1]:
+            custom_model.add(layer)
 
-        model.add(MaxPooling2D((2, 2), name='max_pool'))
-        model.add(Conv2D(64, (3, 3), strides=(1, 1), name="conv1"))
-        model.add(Activation('relu'))
-        model.add(AveragePooling2D((3, 3), name='avg_pool'))
+        #Last layer for classification
+        custom_model.add(Flatten(name='last_flatten'))
+        custom_model.add(Dense(512, activation='relu'))
+        custom_model.add(Dense(1))
+        custom_model.add(Activation('softmax'))
 
-        model.add(GlobalAveragePooling2D())
-        model.add(Dense(300, activation="relu", name='rl'))
-        model.add(Dropout(0.5))
-        model.add(Dense(1, activation='sigmoid', name='sm'))
         adam_optimizer = tf.optimizers.Adam(learning_rate=0.001)
 
-        model.compile(
+        custom_model.compile(
             optimizer=adam_optimizer,
             loss='binary_crossentropy',
             metrics=['accuracy']
         )
 
-        # model.summary()
-        return model
+        custom_model.summary()
+        return custom_model
 
 
 reduce_lr_acc = ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='max')
@@ -139,6 +159,12 @@ def k_fold_cross_validation(model_index):
                 else:
                     X_test = np.insert(X_test, 1, np.array(image_batch[0]), axis=0)
                     y_test = np.insert(y_test, 1, np.array(image_batch[1]), axis=0)
+
+        #Necessary for VG16 models only work with images with 3 channels
+        #while grayscale only have 1
+        if model_index == 3:
+            X_test = X_test.repeat(3,axis=-1)
+            X_train = X_train.repeat(3,axis=-1)
 
         # TRAINING AND VALIDATION LOOP
         print(f'Starting training for fold {n_fold} ...')

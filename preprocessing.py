@@ -5,8 +5,6 @@ import shutil
 import warnings
 from builtins import float
 
-import h5py
-import numpy as np
 import tensorflow as tf
 from PIL import Image, UnidentifiedImageError
 from keras_preprocessing.image import ImageDataGenerator

@@ -9,6 +9,7 @@ from model_testing import create_dir
 from preprocessing import get_train_and_val_dataset_IDG
 from keras import layers
 from tensorflow.python.ops.numpy_ops import np_config
+from model_testing import plot_losses
 
 np_config.enable_numpy_behavior()
 
@@ -33,6 +34,15 @@ num_examples_to_generate = 16
 # to visualize progress in the animated GIF)
 seed = tf.random.normal([num_examples_to_generate, noise_dim])
 weight_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.2, mean=0.0, seed=42)
+
+
+def get_loss_function(par):
+    if par == 0:
+        # This method returns a helper function to compute cross entropy loss
+        return tf.keras.losses.BinaryCrossentropy(from_logits=True)
+    else:
+        return tf.keras.losses.MeanSquaredError()
+
 
 
 # Used to produce images from a seed.
@@ -67,36 +77,6 @@ def make_generator_model():
     return model
 
 
-def make_generator_model1():
-    model = tf.keras.Sequential()
-    model.add(layers.Dense(IMG_WIDTH // SCALE_FACTOR * IMG_WIDTH // SCALE_FACTOR * 128,
-                           input_shape=(NOISE_SHAPE,), kernel_initializer=weight_initializer))
-    # model.add(BatchNormalization(epsilon=BN_EPSILON, momentum=BN_MOMENTUM))
-    # model.add(LeakyReLU(alpha=leaky_relu_slope))
-    model.add(layers.Reshape((IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 128)))
-
-    model = transposed_conv(model, 512, ksize=5, stride_size=1)
-    model.add(layers.Dropout(0.4))
-    model = transposed_conv(model, 256, ksize=5, stride_size=2)
-    model.add(layers.Dropout(0.4))
-    model = transposed_conv(model, 128, ksize=5, stride_size=2)
-    model = transposed_conv(model, 64, ksize=5, stride_size=2)
-    model = transposed_conv(model, 32, ksize=5, stride_size=2)
-
-    model.add(layers.Dense(1, activation='tanh', kernel_initializer=weight_initializer))
-
-    return model
-
-
-def transposed_conv(model, out_channels, ksize, stride_size, ptype='same'):
-    model.add(layers.Conv2DTranspose(out_channels, (ksize, ksize),
-                                     strides=(stride_size, stride_size), padding=ptype,
-                                     kernel_initializer=weight_initializer, use_bias=False))
-    model.add(layers.BatchNormalization())
-    model.add(layers.ReLU())
-    return model
-
-
 # CNN-based image classifier
 # The discriminator outputs a probability that the input image is real or fake [0, 1].
 def make_discriminator_model():
@@ -117,49 +97,17 @@ def make_discriminator_model():
     return model
 
 
-def make_discriminator_model1():
-    model = tf.keras.Sequential()
-    model.add(layers.Conv2D(64, (5, 5), strides=(1, 1), padding='same', use_bias=False,
-                            input_shape=[IMG_HEIGHT, IMG_WIDTH, 1],
-                            kernel_initializer=weight_initializer))
-    # model.add(BatchNormalization(epsilon=BN_EPSILON, momentum=BN_MOMENTUM))
-    model.add(layers.LeakyReLU())
-    # model.add(Dropout(dropout_rate))
-
-    model = convSN(model, 64, ksize=5, stride_size=2)
-    # model = convSN(model, 128, ksize=3, stride_size=1)
-    model = convSN(model, 128, ksize=5, stride_size=2)
-    # model = convSN(model, 256, ksize=3, stride_size=1)
-    model = convSN(model, 256, ksize=5, stride_size=2)
-    # model = convSN(model, 512, ksize=3, stride_size=1)
-    # model.add(Dropout(dropout_rate))
-
-    model.add(layers.Flatten())
-    model.add(layers.Dense(1, activation='sigmoid'))
-
-    return model
-
-
-def convSN(model, out_channels, ksize, stride_size):
-    model.add(layers.Conv2D(out_channels, (ksize, ksize), strides=(stride_size, stride_size), padding='same',
-                            kernel_initializer=weight_initializer, use_bias=False))
-    model.add(layers.BatchNormalization())
-    model.add(layers.LeakyReLU())
-    # model.add(Dropout(dropout_rate))
-    return model
-
-
 # How well the discriminator is able to distinguish real images from fakes
 def discriminator_loss(real_output, fake_output):
-    real_loss = cross_entropy(tf.ones_like(real_output), real_output)
-    fake_loss = cross_entropy(tf.zeros_like(fake_output), fake_output)
+    real_loss = loss(tf.ones_like(real_output), real_output)
+    fake_loss = loss(tf.zeros_like(fake_output), fake_output)
     total_loss = real_loss + fake_loss
     return total_loss
 
 
 # How well the generator was able to trick the discriminator
 def generator_loss(fake_output):
-    return cross_entropy(tf.ones_like(fake_output), fake_output)
+    return loss(tf.ones_like(fake_output), fake_output)
 
 
 generator = make_generator_model()
@@ -171,9 +119,6 @@ noise = tf.random.normal([1, 100])
 discriminator = make_discriminator_model()
 # decision = discriminator(generated_image)
 # print (decision)
-
-# This method returns a helper function to compute cross entropy loss
-cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
 generator_optimizer = tf.keras.optimizers.Adam(1e-4)
 discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
@@ -206,6 +151,8 @@ def train_step(images):
 
     generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
+    return gen_loss, disc_loss
+
 
 
 def generate_and_save_images(model, epoch, test_input):
@@ -226,16 +173,17 @@ def generate_and_save_images(model, epoch, test_input):
 
 
 def train(dataset, epochs):
+    losses = []
     for epoch in range(epochs):
         start = time.time()
-
         print(f"Starting training for epoch {epoch+1}/{EPOCHS}. Max batches:{MAX_BATCHES}")
         for image_batch in dataset:
             # if dataset.batch_index != 0 and dataset.batch_index % 100 == 0:
             #     print(f"Round:{dataset.batch_index}")
 
-            # Train the model for each batch in the train set of the fold
-            train_step(image_batch[0])
+            # Train the model for each batch in the train set of the fold and save
+            # generator and discriminator losses
+            losses.append(train_step(image_batch[0]))
             if dataset.batch_index == 0:
                 print(f"Training finished for epoch {epoch+1}.")
                 break
@@ -257,6 +205,7 @@ def train(dataset, epochs):
 
     # Generate after the final epoch
     display.clear_output(wait=True)
+    plot_losses(losses, img_gen_dir, 0)
     generate_and_save_images(generator,
                              epochs,
                              seed)
@@ -296,6 +245,11 @@ def start():
     print("Done.")
 
 
+
+loss = get_loss_function(1)
+start()
+
+loss = get_loss_function(0)
 start()
 
 
