@@ -112,8 +112,8 @@ def get_model(i: int):
         return custom_model
 
 
-reduce_lr_acc = ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='max')
-early_stopping = EarlyStopping(monitor='val_accuracy', patience=15, verbose=0, mode='max')
+reduce_lr_acc = ReduceLROnPlateau(monitor='accuracy', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='max')
+early_stopping = EarlyStopping(monitor='accuracy', patience=15, verbose=0, mode='max')
 
 
 def get_model_name(i):
@@ -128,7 +128,7 @@ def k_fold_cross_validation(model_index):
     # Create callback to save model for current fold
     mcp_save = ModelCheckpoint(bin_class_dir + get_model_name(model_index),
                                save_best_only=True,
-                               monitor='val_accuracy',
+                               monitor='accuracy',
                                mode='max',
                                verbose=1)
     # Kfold training loop

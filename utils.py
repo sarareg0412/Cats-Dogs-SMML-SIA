@@ -49,10 +49,10 @@ def plot_scores(histories, model_index, save_plot_dir, epochs):
     plt.title('Average validation accuracy')
     plt.ylabel("Accuracy value")
     plt.xlabel("Fold")
-    plt.text(3, min(accs), 'AVG ACCURACY: {:.2f}'.format(sum(accs) / len(accs)))
+    plt.text(3, min(accs), 'AVG ACCURACY: {:.4f}'.format(sum(accs) / len(accs)))
 
     for x, y in zip(range(1, N_OF_FOLDS + 1), accs):
-        label = "{:.2f}".format(y)
+        label = "{:.4f}".format(y)
 
         plt.annotate(label,  # this is the text
                      (x, y),  # these are the coordinates to position the label
