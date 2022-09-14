@@ -13,7 +13,7 @@ from keras.layers import Conv2D, MaxPooling2D, \
     BatchNormalization, AveragePooling2D, GlobalAveragePooling2D
 
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
-from model_testing import plot_scores, create_dir
+from utils import plot_scores, create_dir
 
 import timm
 # os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
@@ -192,4 +192,4 @@ train_dataset, val_dataset = get_train_and_val_dataset_IDG(rescale=255.,
                                                            batch_size=BATCH_SIZE,
                                                            validation=0.0)
 create_dir(bin_class_dir)
-plot_scores(k_fold_cross_validation(1), 1, bin_class_dir + save_plot_dir)
+plot_scores(k_fold_cross_validation(1), 1, bin_class_dir + save_plot_dir, N_OF_EPOCHS)

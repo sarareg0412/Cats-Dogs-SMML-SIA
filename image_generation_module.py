@@ -5,12 +5,13 @@ from IPython import display
 import imageio
 import tensorflow as tf
 from matplotlib import pyplot as plt
-from model_testing import create_dir
+from utils import create_dir, add_value_to_avg
 from preprocessing import get_train_and_val_dataset_IDG
 from keras import layers
 from tensorflow.python.ops.numpy_ops import np_config
-from model_testing import plot_losses
+from utils import plot_losses
 
+tf.config.run_functions_eagerly(True)
 np_config.enable_numpy_behavior()
 
 BATCH_SIZE = 32
@@ -26,7 +27,7 @@ NOISE_SHAPE = 100
 SCALE_FACTOR = 4
 RESCALING_FACTOR = 127.5
 
-EPOCHS = 1
+EPOCHS = 2
 noise_dim = 100
 num_examples_to_generate = 16
 
@@ -151,8 +152,7 @@ def train_step(images):
 
     generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
-    return gen_loss, disc_loss
-
+    return gen_loss.numpy(), disc_loss.numpy()
 
 
 def generate_and_save_images(model, epoch, test_input):
@@ -172,25 +172,25 @@ def generate_and_save_images(model, epoch, test_input):
     # plt.show()
 
 
-def train(dataset, epochs):
-    losses = []
+def train(dataset, epochs, loss_name):
+    losses, epoch_losses = (0.0, 0.0), []
     for epoch in range(epochs):
-        start = time.time()
         print(f"Starting training for epoch {epoch+1}/{EPOCHS}. Max batches:{MAX_BATCHES}")
-        for image_batch in dataset:
-            # if dataset.batch_index != 0 and dataset.batch_index % 100 == 0:
-            #     print(f"Round:{dataset.batch_index}")
 
+        start = time.time()
+        for image_batch in dataset:
+            if dataset.batch_index == 0:
+                print('Training finished. Time for epoch {} is {} sec'.format(epoch + 1, time.time() - start))
+                break
             # Train the model for each batch in the train set of the fold and save
             # generator and discriminator losses
-            losses.append(train_step(image_batch[0]))
-            if dataset.batch_index == 0:
-                print(f"Training finished for epoch {epoch+1}.")
-                break
+            gen_l, disc_l = train_step(image_batch[0])
+            losses = (add_value_to_avg(losses[0],gen_l,dataset.batch_index),
+                      add_value_to_avg(losses[1], gen_l, dataset.batch_index))
 
+        epoch_losses.append(losses)
         # Produce images for the GIF as you go
         display.clear_output(wait=True)
-        print("Saving generated image.")
         generate_and_save_images(generator,
                                  epoch + 1,
                                  seed)
@@ -201,20 +201,18 @@ def train(dataset, epochs):
             checkpoint.save(file_prefix=checkpoint_prefix)
             # plot_array(disc_losses, "Discriminator loss", "disc_losses")
 
-        print('Time for epoch {} is {} sec'.format(epoch + 1, time.time() - start))
-
     # Generate after the final epoch
     display.clear_output(wait=True)
-    plot_losses(losses, img_gen_dir, 0)
+
+    plot_losses(epoch_losses, img_gen_dir, loss_name)
+
     generate_and_save_images(generator,
                              epochs,
                              seed)
 
 
-anim_file = 'dcgan.gif'
-
-
-def create_gif():
+def create_gif(loss_name):
+    anim_file = f'dcgan_{loss_name}.gif'
     with imageio.get_writer(anim_file, mode='I') as writer:
         filenames = glob.glob(f'{img_gen_dir}{tmp_dir}image*.png')
         filenames = sorted(filenames)
@@ -234,22 +232,26 @@ train_dataset, val_dataset = get_train_and_val_dataset_IDG(rescale=RESCALING_FAC
 
 
 # Could add a Data Augmentation step
-def start():
+def start(loss_index):
+    if loss_index == 0:
+        loss_name = "bce"
+    else:
+        loss_name = "mse"
+
     create_dir(img_gen_dir)
     create_dir(img_gen_dir + tmp_dir)
     print("Starting training.")
-    train(train_dataset, EPOCHS)
+    train(train_dataset, EPOCHS, loss_name)
     print("Training completed.")
     print("Creating GIF of saved images.")
-    create_gif()
+    create_gif(loss_name)
     print("Done.")
 
 
+loss = get_loss_function(0)
+start(0)
 
 loss = get_loss_function(1)
-start()
-
-loss = get_loss_function(0)
-start()
+start(1)
 
 
