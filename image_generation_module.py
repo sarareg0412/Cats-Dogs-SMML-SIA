@@ -158,7 +158,7 @@ def train_step(images):
 def generate_and_save_images(model, epoch, test_input):
     # Notice `training` is set to False.
     # This is so all layers run in inference mode (batchnorm).
-    predictions = model(test_input, training=False)
+    predictions = model(test_input, training=False).numpy()
 
     fig = plt.figure(figsize=(N_GEN_IMG, N_GEN_IMG))
 
