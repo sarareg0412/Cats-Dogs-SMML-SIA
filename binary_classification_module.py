@@ -18,9 +18,11 @@ from utils import plot_scores, create_dir
 import timm
 # os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
 
+MODEL = 3                   # Index of chosen model
 BATCH_SIZE = 32
-N_OF_FOLDS = 5
 N_OF_EPOCHS = 30
+
+N_OF_FOLDS = 5
 MAX_BATCHES = 25000 / BATCH_SIZE
 CHANNELS = 1
 IMG_HEIGHT = 50
@@ -35,10 +37,10 @@ def get_model(i: int):
         # This model has a single, fully connected hidden layer
         model = Sequential()
         # Specify the shape of the input
-        model.add(Input(shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS), name="input_layer"))
+        model.add(Input(shape=(IMG_WIDTH, IMG_HEIGHT, CHANNELS), name="input_layer"))
         model.add(Flatten(name='flatten_hidden_Layer'))
         model.add(Dense(1024, activation='relu', name='hidden_Layer'))
-        model.add(Dense(1, activation='sigmoid', name='output_Layer'))
+        model.add(Dense(1, activation='softmax', name='output_Layer'))
 
         adam_optimizer = tf.optimizers.Adam(learning_rate=0.001)
 
@@ -55,20 +57,19 @@ def get_model(i: int):
         #Convolutional NN
         model = Sequential()
 
-        model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS), name='conv0'))
-        model.add(Activation('relu'))
+        model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_WIDTH, IMG_HEIGHT, CHANNELS), name='conv0'))
         model.add(MaxPooling2D(pool_size=(2, 2), name='max_pool0'))
 
-        model.add(Conv2D(32, (3, 3), name='conv1'))
+        model.add(Conv2D(64, (3, 3), name='conv1'))
         model.add(Activation('relu'))
         model.add(MaxPooling2D(pool_size=(2, 2), name='max_pool1'))
 
-        model.add(Conv2D(32, (3, 3), name='conv2'))
+        model.add(Conv2D(128, (3, 3), name='conv2'))
         model.add(Activation('relu'))
         model.add(MaxPooling2D(pool_size=(2, 2), name='max_pool2'))
 
         model.add(Flatten())
-        model.add(Dense(64))
+        model.add(Dense(512))
         model.add(Activation('relu'))
 
         model.add(Dropout(0.5))
@@ -88,29 +89,72 @@ def get_model(i: int):
 
     if i == 3:
 
-        vgg16_model = vgg16.VGG16(weights='imagenet', include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, 3))
-        custom_model = Sequential()
+        # vgg16_model = vgg16.VGG16(weights='imagenet', include_top=False, input_shape=(IMG_WIDTH, IMG_HEIGHT, 3))
+        # custom_model = Sequential()
+        #
+        # for layer in vgg16_model.layers[:-1]:
+        #     custom_model.add(layer)
+        #
+        # custom_model.add(Flatten(name='last_flatten'))
+        # custom_model.add(Dense(512, activation='relu'))
+        # custom_model.add(Dense(1))
+        # custom_model.add(Activation('sigmoid'))
 
-        for layer in vgg16_model.layers[:-1]:
-            custom_model.add(layer)
-
-        #Last layer for classification
-        custom_model.add(Flatten(name='last_flatten'))
-        custom_model.add(Dense(512, activation='relu'))
-        custom_model.add(Dense(1))
-        custom_model.add(Activation('softmax'))
+        input_layer = Input(shape=(IMG_WIDTH, IMG_HEIGHT, 3))
+        resnet_model = ResNet50(weights='imagenet', input_tensor=input_layer, include_top=False)
+        last_layer = resnet_model.output    #Takes out the last layer
+        flatten = Flatten()(last_layer)
+        # Last layer for binary classification
+        output_layer = Dense(1, activation='sigmoid')(flatten)
+        model = Model(inputs=input_layer, outputs=output_layer)
+        # We are making all the layers intrainable except the last layer
+        for layer in model.layers[:-1]:
+            layer.trainable = False
 
         adam_optimizer = tf.optimizers.Adam(learning_rate=0.001)
 
-        custom_model.compile(
+        model.compile(
             optimizer=adam_optimizer,
             loss='binary_crossentropy',
             metrics=['accuracy']
         )
 
-        custom_model.summary()
-        return custom_model
+        model.summary()
+        return model
 
+    if i == 4:
+        model = Sequential()
+        model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_WIDTH, IMG_HEIGHT, CHANNELS)))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Dropout(0.25))
+
+        model.add(Conv2D(64, (3, 3), activation='relu'))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Dropout(0.25))
+
+        model.add(Conv2D(128, (3, 3), activation='relu'))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Dropout(0.25))
+
+        model.add(Flatten())
+        model.add(Dense(512, activation='relu'))
+        model.add(BatchNormalization())
+        model.add(Dropout(0.5))
+        model.add(Dense(1, activation='sigmoid'))
+
+        adam_optimizer = tf.optimizers.Adam(learning_rate=0.001)
+
+        model.compile(
+            optimizer=adam_optimizer,
+            loss='binary_crossentropy',
+            metrics=['accuracy']
+        )
+
+        model.summary()
+        return model
 
 reduce_lr_acc = ReduceLROnPlateau(monitor='accuracy', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='max')
 early_stopping = EarlyStopping(monitor='accuracy', patience=15, verbose=0, mode='max')
@@ -120,13 +164,13 @@ def get_model_name(i):
     return 'model_'+str(i)+'.hdf5'
 
 
-def k_fold_cross_validation(model_index):
+def k_fold_cross_validation():
     HISTORY = []
-    model = get_model(model_index)
+    model = get_model(MODEL)
     n_fold = 1
     k_fold = KFold(n_splits=N_OF_FOLDS, shuffle=True)
     # Create callback to save model for current fold
-    mcp_save = ModelCheckpoint(bin_class_dir + get_model_name(model_index),
+    mcp_save = ModelCheckpoint(bin_class_dir + get_model_name(MODEL),
                                save_best_only=True,
                                monitor='accuracy',
                                mode='max',
@@ -162,11 +206,11 @@ def k_fold_cross_validation(model_index):
 
         #Necessary for VG16 models only work with images with 3 channels
         #while grayscale only have 1
-        if model_index == 3:
+        if MODEL == 3:
             X_test = X_test.repeat(3,axis=-1)
             X_train = X_train.repeat(3,axis=-1)
 
-
+        print(X_train.shape, y_train.shape, X_test.shape, y_test.shape)
         # TRAINING AND VALIDATION LOOP
         print(f'Starting training for fold {n_fold} ...')
 
@@ -193,5 +237,5 @@ train_dataset, val_dataset = get_train_and_val_dataset_IDG(rescale=255.,
                                                            batch_size=BATCH_SIZE,
                                                            validation=0.0)
 create_dir(bin_class_dir)
-history = k_fold_cross_validation(1)
-plot_scores(history, 1, bin_class_dir + save_plot_dir, N_OF_EPOCHS, BATCH_SIZE)
+history = k_fold_cross_validation()
+plot_scores(history, MODEL, bin_class_dir + save_plot_dir, N_OF_EPOCHS, BATCH_SIZE)
