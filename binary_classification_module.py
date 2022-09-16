@@ -20,7 +20,7 @@ import timm
 
 BATCH_SIZE = 32
 N_OF_FOLDS = 5
-N_OF_EPOCHS = 2
+N_OF_EPOCHS = 30
 MAX_BATCHES = 25000 / BATCH_SIZE
 CHANNELS = 1
 IMG_HEIGHT = 50
@@ -166,6 +166,7 @@ def k_fold_cross_validation(model_index):
             X_test = X_test.repeat(3,axis=-1)
             X_train = X_train.repeat(3,axis=-1)
 
+
         # TRAINING AND VALIDATION LOOP
         print(f'Starting training for fold {n_fold} ...')
 
@@ -192,4 +193,5 @@ train_dataset, val_dataset = get_train_and_val_dataset_IDG(rescale=255.,
                                                            batch_size=BATCH_SIZE,
                                                            validation=0.0)
 create_dir(bin_class_dir)
-plot_scores(k_fold_cross_validation(1), 1, bin_class_dir + save_plot_dir, N_OF_EPOCHS)
+history = k_fold_cross_validation(1)
+plot_scores(history, 1, bin_class_dir + save_plot_dir, N_OF_EPOCHS, BATCH_SIZE)

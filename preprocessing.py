@@ -16,9 +16,7 @@ DOGS_IMGS_PATH = "../CatsDogs/Dogs/"
 SUBDIRS = ["./images/test/", "./images/train/"]
 CATS = "Cats"
 DOGS = "Dogs"
-SIZE = (128, 128)
 
-BATCH_SIZE = 64
 # matches any string with the substring ".<digits>."
 # such as dog.666.jpg
 pattern = re.compile(r'.*\.(\d+)\..*')
