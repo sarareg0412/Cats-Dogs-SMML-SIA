@@ -49,7 +49,7 @@ def plot_scores(histories, model_index, save_plot_dir, epochs, batch_size):
     print("Plots correctly saved.")
 
 
-def plot_losses(losses, save_plot_dir, loss):
+def plot_losses(losses, save_plot_dir, loss, epochs, batch):
     gen_loss, disc_loss = [], []
     for i in range(len(losses)):
         gen_loss.append(losses[i][0])
@@ -61,7 +61,7 @@ def plot_losses(losses, save_plot_dir, loss):
     plt.ylabel("Loss value")
     plt.legend(loc='upper right')
 
-    plt.savefig(f"{save_plot_dir}loss_function_{loss}.png")
+    plt.savefig(f"{save_plot_dir}{loss}_{epochs}E_{batch}B.png")
 
 
 # Create directory if it doesn't with the passed path

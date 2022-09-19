@@ -7,14 +7,17 @@ import tensorflow as tf
 from matplotlib import pyplot as plt
 from utils import create_dir, add_value_to_avg
 from preprocessing import get_train_and_val_dataset_IDG
-from keras import layers
+
+from keras.models import Sequential
+from keras.layers import Conv2D, MaxPooling2D, \
+    Dropout, Flatten, Dense, Activation, BatchNormalization, ReLU, Reshape, Conv2DTranspose
 from tensorflow.python.ops.numpy_ops import np_config
 from utils import plot_losses
 
 tf.config.run_functions_eagerly(True)
 np_config.enable_numpy_behavior()
 
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 MAX_BATCHES = 25000 / BATCH_SIZE
 img_gen_dir = 'img_gen/'
 tmp_dir = 'tmp/'
@@ -27,7 +30,7 @@ NOISE_SHAPE = 100
 SCALE_FACTOR = 4
 RESCALING_FACTOR = 127.5
 
-EPOCHS = 2
+EPOCHS = 150
 noise_dim = 100
 num_examples_to_generate = 16
 
@@ -50,29 +53,29 @@ def get_loss_function(par):
 # The Generator network takes as input a simple random noise N-dimensional vector
 # and transforms it according to a learned target distribution.
 def make_generator_model():
-    model = tf.keras.Sequential()
+    model = Sequential()
 
-    model.add(layers.Dense(IMG_WIDTH // SCALE_FACTOR * IMG_WIDTH // SCALE_FACTOR * 256, use_bias=False,
+    model.add(Dense(IMG_WIDTH // SCALE_FACTOR * IMG_WIDTH // SCALE_FACTOR * 256, use_bias=False,
                            input_shape=(NOISE_SHAPE,)))
-    model.add(layers.BatchNormalization())
-    model.add(layers.ReLU())
+    model.add(BatchNormalization())
+    model.add(ReLU())
 
-    model.add(layers.Reshape((IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)))
+    model.add(Reshape((IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)))
     #assert model.output_shape == (None, IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)  # Note: None is the batch size
-    model.add(layers.Dropout(0.4))
+    model.add(Dropout(0.4))
 
-    model.add(layers.Conv2DTranspose(128, (5, 5), strides=(1, 1), padding='same', use_bias=False))
+    model.add(Conv2DTranspose(128, (5, 5), strides=(1, 1), padding='same', use_bias=False))
     #assert model.output_shape == (None, IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 128)
-    model.add(layers.BatchNormalization())
-    model.add(layers.ReLU())
-    model.add(layers.Dropout(0.4))
+    model.add(BatchNormalization())
+    model.add(ReLU())
+    model.add(Dropout(0.4))
 
-    model.add(layers.Conv2DTranspose(64, (5, 5), strides=(2, 2), padding='same', use_bias=False))
+    model.add(Conv2DTranspose(64, (5, 5), strides=(2, 2), padding='same', use_bias=False))
     # assert model.output_shape == (None, 14, 14, 64)
-    model.add(layers.BatchNormalization())
-    model.add(layers.ReLU())
+    model.add(BatchNormalization())
+    model.add(ReLU())
 
-    model.add(layers.Conv2DTranspose(1, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh'))
+    model.add(Conv2DTranspose(1, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh'))
     # assert model.output_shape == (None, 28, 28, 1)
 
     return model
@@ -81,19 +84,26 @@ def make_generator_model():
 # CNN-based image classifier
 # The discriminator outputs a probability that the input image is real or fake [0, 1].
 def make_discriminator_model():
-    model = tf.keras.Sequential()
+    model = Sequential()
 
-    model.add(layers.Conv2D(64, (5, 5), strides=(2, 2), padding='same',
-                            input_shape=[IMG_HEIGHT, IMG_WIDTH, 1]))
-    model.add(layers.LeakyReLU())
-    model.add(layers.Dropout(0.3))
+    model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_WIDTH, IMG_HEIGHT, 1), name='conv0'))
+    model.add(MaxPooling2D(pool_size=(2, 2), name='max_pool0'))
 
-    model.add(layers.Conv2D(128, (5, 5), strides=(2, 2), padding='same'))
-    model.add(layers.LeakyReLU())
-    model.add(layers.Dropout(0.3))
+    model.add(Conv2D(64, (3, 3), name='conv1'))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2), name='max_pool1'))
 
-    model.add(layers.Flatten())
-    model.add(layers.Dense(1))
+    model.add(Conv2D(128, (3, 3), name='conv2'))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2), name='max_pool2'))
+
+    model.add(Flatten())
+    model.add(Dense(512))
+    model.add(Activation('relu'))
+
+    model.add(Dropout(0.5))
+    model.add(Dense(1))
+    model.add(Activation('sigmoid'))
 
     return model
 
@@ -155,7 +165,8 @@ def train_step(images):
     return gen_loss.numpy(), disc_loss.numpy()
 
 
-def generate_and_save_images(model, epoch, test_input):
+def generate_and_save_images(model, loss_name, epoch, test_input):
+    create_dir(f'{img_gen_dir}{tmp_dir}{loss_name}/')
     # Notice `training` is set to False.
     # This is so all layers run in inference mode (batchnorm).
     predictions = model(test_input, training=False).numpy()
@@ -165,10 +176,9 @@ def generate_and_save_images(model, epoch, test_input):
     for i in range(predictions.shape[0]):
         plt.subplot(N_GEN_IMG, N_GEN_IMG, i + 1)
         plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
-        # plt.imshow((predictions[i, :, :, :] * 127.5 + 127.5), interpolation='nearest')
         plt.axis('off')
 
-    plt.savefig(f'{img_gen_dir}{tmp_dir}image_at_epoch_{epoch:04d}.png')
+    plt.savefig(f'{img_gen_dir}{tmp_dir}{loss_name}/image_at_epoch_{epoch:04d}.png')
     # plt.show()
 
 
@@ -185,28 +195,28 @@ def train(dataset, epochs, loss_name):
             # Train the model for each batch in the train set of the fold and save
             # generator and discriminator losses
             gen_l, disc_l = train_step(image_batch[0])
-            losses = (add_value_to_avg(losses[0],gen_l,dataset.batch_index),
-                      add_value_to_avg(losses[1], gen_l, dataset.batch_index))
+            losses = (add_value_to_avg(losses[0], gen_l, dataset.batch_index),
+                      add_value_to_avg(losses[1], disc_l, dataset.batch_index))
 
         epoch_losses.append(losses)
-        # Produce images for the GIF as you go
-        display.clear_output(wait=True)
-        generate_and_save_images(generator,
-                                 epoch + 1,
-                                 seed)
-
-        # Save the model every 15 epochs
-        if (epoch + 1) % 15 == 0:
-            print("Saving model and discriminator losses.")
+        # Produce images and save the model every 25 epochs
+        if epoch == 0 or (epoch + 1) % 25 == 0:
+            display.clear_output(wait=True)
+            generate_and_save_images(generator,
+                                     loss_name,
+                                     epoch + 1,
+                                     seed)
+            print("Saving model and discriminator losses and images.")
             checkpoint.save(file_prefix=checkpoint_prefix)
             # plot_array(disc_losses, "Discriminator loss", "disc_losses")
 
-    # Generate after the final epoch
+    # Generate last pic after the final epoch
     display.clear_output(wait=True)
 
-    plot_losses(epoch_losses, img_gen_dir, loss_name)
+    plot_losses(epoch_losses, img_gen_dir, loss_name, epochs, BATCH_SIZE)
 
     generate_and_save_images(generator,
+                             loss_name,
                              epochs,
                              seed)
 
@@ -214,7 +224,7 @@ def train(dataset, epochs, loss_name):
 def create_gif(loss_name):
     anim_file = f'dcgan_{loss_name}.gif'
     with imageio.get_writer(anim_file, mode='I') as writer:
-        filenames = glob.glob(f'{img_gen_dir}{tmp_dir}image*.png')
+        filenames = glob.glob(f'{img_gen_dir}{tmp_dir}{loss_name}/image*.png')
         filenames = sorted(filenames)
 
         for filename in filenames:
@@ -244,14 +254,14 @@ def start(loss_index):
     train(train_dataset, EPOCHS, loss_name)
     print("Training completed.")
     print("Creating GIF of saved images.")
-    create_gif(loss_name)
+    #create_gif(loss_name)
     print("Done.")
 
 
 loss = get_loss_function(0)
 start(0)
 
-loss = get_loss_function(1)
-start(1)
+#loss = get_loss_function(1)
+#start(1)
 
 
