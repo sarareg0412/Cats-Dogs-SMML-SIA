@@ -5,12 +5,11 @@ from IPython import display
 import imageio
 import tensorflow as tf
 from matplotlib import pyplot as plt
-from utils import create_dir, add_value_to_avg
+from utils import create_dir, add_value_to_avg, remove_if_exists
 from preprocessing import get_train_and_val_dataset_IDG
 
-from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, \
-    Dropout, Flatten, Dense, Activation, BatchNormalization, ReLU, Reshape, Conv2DTranspose
+    Dropout, Flatten, Dense, Activation, BatchNormalization, ReLU, Reshape, Conv2DTranspose, LeakyReLU, AveragePooling2D
 from tensorflow.python.ops.numpy_ops import np_config
 from utils import plot_losses
 
@@ -20,7 +19,7 @@ np_config.enable_numpy_behavior()
 BATCH_SIZE = 64
 MAX_BATCHES = 25000 / BATCH_SIZE
 img_gen_dir = 'img_gen/'
-tmp_dir = 'tmp/'
+LOSS_INDEX = 0          # 0:BCE, 1:MSE
 
 IMG_WIDTH = 32
 IMG_HEIGHT = 32
@@ -30,16 +29,11 @@ NOISE_SHAPE = 100
 SCALE_FACTOR = 4
 RESCALING_FACTOR = 127.5
 
-EPOCHS = 20
+EPOCHS = 50
 SAVE_IMAGES_INTERVAL = 5
-SAVE_PLOT_INTERVAL = 20
+SAVE_PLOT_INTERVAL = 10
 noise_dim = 100
 num_examples_to_generate = 16
-
-# You will reuse this seed overtime (so it's easier)
-# to visualize progress in the animated GIF)
-seed = tf.random.normal([num_examples_to_generate, noise_dim])
-weight_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.2, mean=0.0, seed=42)
 
 
 def get_loss_function(par):
@@ -54,7 +48,7 @@ def get_loss_function(par):
 # The Generator network takes as input a simple random noise N-dimensional vector
 # and transforms it according to a learned target distribution.
 def make_generator_model():
-    model = Sequential()
+    model = tf.keras.Sequential()
 
     model.add(Dense(IMG_WIDTH // SCALE_FACTOR * IMG_WIDTH // SCALE_FACTOR * 256, use_bias=False,
                            input_shape=(NOISE_SHAPE,)))
@@ -80,26 +74,30 @@ def make_generator_model():
 
 # CNN-based image classifier
 # The discriminator outputs a probability that the input image is real or fake [0, 1].
-def make_discriminator_model():
-    model = Sequential()
+def make_discriminator_model(loss_index):
+    model = tf.keras.Sequential()
 
-    model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_WIDTH, IMG_HEIGHT, 1), name='conv0'))
-    model.add(MaxPooling2D(pool_size=(2, 2), name='max_pool0'))
+    model.add(Conv2D(32, (3, 3), input_shape=(IMG_WIDTH, IMG_HEIGHT, 1), name='conv0'))
+    model.add(LeakyReLU())
 
     model.add(Conv2D(64, (3, 3), name='conv1'))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2), name='max_pool1'))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU())
 
     model.add(Conv2D(128, (3, 3), name='conv2'))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2), name='max_pool2'))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU())
 
     model.add(Flatten())
     model.add(Dense(512))
-    model.add(Activation('relu'))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU())
 
     model.add(Dropout(0.5))
     model.add(Dense(1))
+
+    if loss_index:
+        model.add(LeakyReLU())
 
     return model
 
@@ -115,22 +113,6 @@ def discriminator_loss(real_output, fake_output):
 # How well the generator was able to trick the discriminator
 def generator_loss(fake_output):
     return loss(tf.ones_like(fake_output), fake_output)
-
-
-generator = make_generator_model()
-
-noise = tf.random.normal([1, 100])
-discriminator = make_discriminator_model()
-
-generator_optimizer = tf.keras.optimizers.Adam(1e-4)
-discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
-
-checkpoint_dir = '/training_checkpoints'
-checkpoint_prefix = os.path.join(img_gen_dir + checkpoint_dir, "ckpt")
-checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
-                                 discriminator_optimizer=discriminator_optimizer,
-                                 generator=generator,
-                                 discriminator=discriminator)
 
 
 # Notice the use of `tf.function`
@@ -158,7 +140,7 @@ def train_step(images):
 
 
 def generate_and_save_images(model, loss_name, epoch, test_input):
-    create_dir(f'{img_gen_dir}{tmp_dir}{loss_name}/')
+    create_dir(f'{img_gen_dir}{loss_name}/')
     # Notice `training` is set to False.
     # This is so all layers run in inference mode (batchnorm).
     predictions = model(test_input, training=False).numpy()
@@ -170,8 +152,9 @@ def generate_and_save_images(model, loss_name, epoch, test_input):
         plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
         plt.axis('off')
 
-    plt.savefig(f'{img_gen_dir}{tmp_dir}{loss_name}/image_at_epoch_{epoch:04d}.png')
-    # plt.show()
+    name_fig = f'{img_gen_dir}{loss_name}/image_at_epoch_{epoch:04d}.png'
+    remove_if_exists(name_fig)
+    plt.savefig(name_fig)
 
 
 def train(dataset, epochs, loss_name):
@@ -205,27 +188,7 @@ def train(dataset, epochs, loss_name):
         if (epoch + 1) % SAVE_PLOT_INTERVAL == 0:
             print("Saving model and plotting discriminator losses.")
             checkpoint.save(file_prefix=checkpoint_prefix)
-            plot_losses(epoch_losses, img_gen_dir, loss_name, epoch, BATCH_SIZE)
-
-
-def create_gif(loss_name):
-    anim_file = f'dcgan_{loss_name}.gif'
-    with imageio.get_writer(anim_file, mode='I') as writer:
-        filenames = glob.glob(f'{img_gen_dir}{tmp_dir}{loss_name}/image*.png')
-        filenames = sorted(filenames)
-
-        for filename in filenames:
-            image = imageio.imread(filename)
-            writer.append_data(image)
-
-        image = imageio.imread(filename)
-        writer.append_data(image)
-
-
-train_dataset, val_dataset = get_train_and_val_dataset_IDG(rescale=RESCALING_FACTOR,
-                                                           size=(IMG_WIDTH, IMG_HEIGHT),
-                                                           batch_size=BATCH_SIZE,
-                                                           validation=0.0)
+            plot_losses(epoch_losses, img_gen_dir, loss_name, epoch+1, BATCH_SIZE)
 
 
 # Could add a Data Augmentation step
@@ -236,17 +199,38 @@ def start(loss_index):
         loss_name = "mse"
 
     create_dir(img_gen_dir)
-    create_dir(img_gen_dir + tmp_dir)
-    print("Starting training.")
+    create_dir(img_gen_dir + loss_name)
+    print(f"Starting training with loss {loss_name}.")
     train(train_dataset, EPOCHS, loss_name)
     print("Training completed.")
-    print("Creating GIF of saved images.")
-    #create_gif(loss_name)
     print("Done.")
 
 
-loss = get_loss_function(0)
-start(0)
+generator = make_generator_model()
+noise = tf.random.normal([1, 100])
+
+generator_optimizer = tf.keras.optimizers.Adam(1e-4)
+discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
+
+# You will reuse this seed overtime (so it's easier)
+# to visualize progress in the animated GIF)
+seed = tf.random.normal([num_examples_to_generate, noise_dim])
+weight_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.2, mean=0.0, seed=42)
+
+train_dataset, val_dataset = get_train_and_val_dataset_IDG(rescale=RESCALING_FACTOR,
+                                                           size=(IMG_WIDTH, IMG_HEIGHT),
+                                                           batch_size=BATCH_SIZE,
+                                                           validation=0.0)
+
+loss = get_loss_function(LOSS_INDEX)
+discriminator = make_discriminator_model(LOSS_INDEX)
+checkpoint_dir = '/training_checkpoints'
+checkpoint_prefix = os.path.join(img_gen_dir + checkpoint_dir, "ckpt")
+checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
+                                 discriminator_optimizer=discriminator_optimizer,
+                                 generator=generator,
+                                 discriminator=discriminator)
+start(LOSS_INDEX)
 
 #loss = get_loss_function(1)
 #start(1)
