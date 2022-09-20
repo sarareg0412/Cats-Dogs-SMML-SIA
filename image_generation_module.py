@@ -30,7 +30,9 @@ NOISE_SHAPE = 100
 SCALE_FACTOR = 4
 RESCALING_FACTOR = 127.5
 
-EPOCHS = 150
+EPOCHS = 20
+SAVE_IMAGES_INTERVAL = 5
+SAVE_PLOT_INTERVAL = 20
 noise_dim = 100
 num_examples_to_generate = 16
 
@@ -42,7 +44,6 @@ weight_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.2, mean=0.0,
 
 def get_loss_function(par):
     if par == 0:
-        # This method returns a helper function to compute cross entropy loss
         return tf.keras.losses.BinaryCrossentropy(from_logits=True)
     else:
         return tf.keras.losses.MeanSquaredError()
@@ -61,22 +62,18 @@ def make_generator_model():
     model.add(ReLU())
 
     model.add(Reshape((IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)))
-    #assert model.output_shape == (None, IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 256)  # Note: None is the batch size
     model.add(Dropout(0.4))
 
     model.add(Conv2DTranspose(128, (5, 5), strides=(1, 1), padding='same', use_bias=False))
-    #assert model.output_shape == (None, IMG_HEIGHT // SCALE_FACTOR, IMG_WIDTH // SCALE_FACTOR, 128)
     model.add(BatchNormalization())
     model.add(ReLU())
     model.add(Dropout(0.4))
 
     model.add(Conv2DTranspose(64, (5, 5), strides=(2, 2), padding='same', use_bias=False))
-    # assert model.output_shape == (None, 14, 14, 64)
     model.add(BatchNormalization())
     model.add(ReLU())
 
     model.add(Conv2DTranspose(1, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh'))
-    # assert model.output_shape == (None, 28, 28, 1)
 
     return model
 
@@ -103,17 +100,16 @@ def make_discriminator_model():
 
     model.add(Dropout(0.5))
     model.add(Dense(1))
-    model.add(Activation('sigmoid'))
 
     return model
 
 
 # How well the discriminator is able to distinguish real images from fakes
 def discriminator_loss(real_output, fake_output):
+    # The first argument is the array of true labels, the second one is the predicted one
     real_loss = loss(tf.ones_like(real_output), real_output)
     fake_loss = loss(tf.zeros_like(fake_output), fake_output)
-    total_loss = real_loss + fake_loss
-    return total_loss
+    return real_loss, fake_loss
 
 
 # How well the generator was able to trick the discriminator
@@ -124,12 +120,7 @@ def generator_loss(fake_output):
 generator = make_generator_model()
 
 noise = tf.random.normal([1, 100])
-# generated_image = generator(noise, training=False)
-
-# plt.imshow(generated_image[0, :, :, 0], cmap='gray')
 discriminator = make_discriminator_model()
-# decision = discriminator(generated_image)
-# print (decision)
 
 generator_optimizer = tf.keras.optimizers.Adam(1e-4)
 discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
@@ -155,14 +146,15 @@ def train_step(images):
         fake_output = discriminator(generated_images, training=True)
 
         gen_loss = generator_loss(fake_output)
-        disc_loss = discriminator_loss(real_output, fake_output)
+        r_disc_loss, f_disc_loss = discriminator_loss(real_output, fake_output)
+        disc_loss = r_disc_loss + f_disc_loss
 
     gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
     gradients_of_discriminator = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
 
     generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
-    return gen_loss.numpy(), disc_loss.numpy()
+    return gen_loss.numpy(), r_disc_loss.numpy(), f_disc_loss.numpy()
 
 
 def generate_and_save_images(model, loss_name, epoch, test_input):
@@ -183,7 +175,7 @@ def generate_and_save_images(model, loss_name, epoch, test_input):
 
 
 def train(dataset, epochs, loss_name):
-    losses, epoch_losses = (0.0, 0.0), []
+    losses, epoch_losses = [0.0, 0.0, 0.0], []
     for epoch in range(epochs):
         print(f"Starting training for epoch {epoch+1}/{EPOCHS}. Max batches:{MAX_BATCHES}")
 
@@ -194,31 +186,26 @@ def train(dataset, epochs, loss_name):
                 break
             # Train the model for each batch in the train set of the fold and save
             # generator and discriminator losses
-            gen_l, disc_l = train_step(image_batch[0])
-            losses = (add_value_to_avg(losses[0], gen_l, dataset.batch_index),
-                      add_value_to_avg(losses[1], disc_l, dataset.batch_index))
+            gen_l, r_disc_l, f_disc_l = train_step(image_batch[0])
+            losses = [add_value_to_avg(losses[0], gen_l, dataset.batch_index),
+                      add_value_to_avg(losses[1], r_disc_l, dataset.batch_index),
+                      add_value_to_avg(losses[2], f_disc_l, dataset.batch_index)]
 
         epoch_losses.append(losses)
-        # Produce images and save the model every 25 epochs
-        if epoch == 0 or (epoch + 1) % 25 == 0:
+
+        if epoch == 0 or (epoch + 1) % SAVE_IMAGES_INTERVAL == 0:
+            print("Saving generated images")
             display.clear_output(wait=True)
             generate_and_save_images(generator,
                                      loss_name,
                                      epoch + 1,
                                      seed)
-            print("Saving model and discriminator losses and images.")
+
+        # Produce plot and save the model
+        if (epoch + 1) % SAVE_PLOT_INTERVAL == 0:
+            print("Saving model and plotting discriminator losses.")
             checkpoint.save(file_prefix=checkpoint_prefix)
-            # plot_array(disc_losses, "Discriminator loss", "disc_losses")
-
-    # Generate last pic after the final epoch
-    display.clear_output(wait=True)
-
-    plot_losses(epoch_losses, img_gen_dir, loss_name, epochs, BATCH_SIZE)
-
-    generate_and_save_images(generator,
-                             loss_name,
-                             epochs,
-                             seed)
+            plot_losses(epoch_losses, img_gen_dir, loss_name, epoch, BATCH_SIZE)
 
 
 def create_gif(loss_name):

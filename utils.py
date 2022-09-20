@@ -50,16 +50,19 @@ def plot_scores(histories, model_index, save_plot_dir, epochs, batch_size):
 
 
 def plot_losses(losses, save_plot_dir, loss, epochs, batch):
-    gen_loss, disc_loss = [], []
+    gen_loss, r_disc_loss, f_disc_loss = [], [], []
     for i in range(len(losses)):
         gen_loss.append(losses[i][0])
-        disc_loss.append(losses[i][1])
+        r_disc_loss.append(losses[i][1])
+        f_disc_loss.append(losses[i][2])
 
     plt.figure(figsize=(12, 8))
-    plt.plot(gen_loss, 'b-', label='Generator Loss')
-    plt.plot(disc_loss, 'r-', label='Discriminator Loss')
+    plt.plot(gen_loss, 'b.--', label='Generator Loss')
+    plt.plot(r_disc_loss, 'r.--', label='Discriminator Loss on Real Images')
+    plt.plot(f_disc_loss, 'g.--', label='Discriminator Loss on Fake Images')
     plt.ylabel("Loss value")
-    plt.legend(loc='upper right')
+    plt.xlabel("Epoch")
+    plt.legend(loc='center right')
 
     plt.savefig(f"{save_plot_dir}{loss}_{epochs}E_{batch}B.png")
 
