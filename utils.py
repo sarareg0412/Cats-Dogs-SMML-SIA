@@ -57,14 +57,15 @@ def plot_losses(losses, save_plot_dir, loss, epochs, batch):
         f_disc_loss.append(losses[i][2])
 
     plt.figure(figsize=(12, 8))
-    plt.plot(gen_loss, 'b.--', label='Generator Loss')
-    plt.plot(r_disc_loss, 'r.--', label='Discriminator Loss on Real Images')
-    plt.plot(f_disc_loss, 'g.--', label='Discriminator Loss on Fake Images')
+    plt.plot(range(1, epochs + 1), gen_loss, 'b.--', label='Generator Loss')
+    plt.plot(range(1, epochs + 1), r_disc_loss, 'r.--', label='Discriminator Loss on Real Images')
+    plt.plot(range(1, epochs + 1), f_disc_loss, 'g.--', label='Discriminator Loss on Fake Images')
     plt.ylabel("Loss value")
     plt.xlabel("Epoch")
     plt.legend(loc='center right')
-
-    plt.savefig(f"{save_plot_dir}{loss}_{epochs}E_{batch}B.png")
+    name = f"{save_plot_dir+loss}/{loss}_{epochs}E_{batch}B.png"
+    remove_if_exists(name)
+    plt.savefig(name)
 
 
 # Create directory if it doesn't with the passed path
@@ -75,3 +76,9 @@ def create_dir(path):
 
 def add_value_to_avg(old, new_val, n):
     return old + ((new_val - old)/n)
+
+
+def remove_if_exists(name):
+    # If the picture already exists, first remove it
+    if os.path.isfile(name):
+        os.remove(name)

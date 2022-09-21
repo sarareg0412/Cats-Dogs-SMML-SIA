@@ -8,8 +8,8 @@ from matplotlib import pyplot as plt
 from utils import create_dir, add_value_to_avg, remove_if_exists
 from preprocessing import get_train_and_val_dataset_IDG
 
-from keras.layers import Conv2D, MaxPooling2D, \
-    Dropout, Flatten, Dense, Activation, BatchNormalization, ReLU, Reshape, Conv2DTranspose, LeakyReLU, AveragePooling2D
+from keras.layers import Conv2D, \
+    Dropout, Flatten, Dense, BatchNormalization, ReLU, Reshape, Conv2DTranspose, LeakyReLU
 from tensorflow.python.ops.numpy_ops import np_config
 from utils import plot_losses
 
@@ -19,17 +19,17 @@ np_config.enable_numpy_behavior()
 BATCH_SIZE = 64
 MAX_BATCHES = 25000 / BATCH_SIZE
 img_gen_dir = 'img_gen/'
-LOSS_INDEX = 0          # 0:BCE, 1:MSE
+LOSS_INDEX = 1  # 0:BCE, 1:MSE
 
-IMG_WIDTH = 32
-IMG_HEIGHT = 32
+IMG_WIDTH = 28
+IMG_HEIGHT = 28
 
 N_GEN_IMG = 4
 NOISE_SHAPE = 100
 SCALE_FACTOR = 4
 RESCALING_FACTOR = 127.5
 
-EPOCHS = 50
+EPOCHS = 110
 SAVE_IMAGES_INTERVAL = 5
 SAVE_PLOT_INTERVAL = 10
 noise_dim = 100
@@ -43,7 +43,6 @@ def get_loss_function(par):
         return tf.keras.losses.MeanSquaredError()
 
 
-
 # Used to produce images from a seed.
 # The Generator network takes as input a simple random noise N-dimensional vector
 # and transforms it according to a learned target distribution.
@@ -51,7 +50,7 @@ def make_generator_model():
     model = tf.keras.Sequential()
 
     model.add(Dense(IMG_WIDTH // SCALE_FACTOR * IMG_WIDTH // SCALE_FACTOR * 256, use_bias=False,
-                           input_shape=(NOISE_SHAPE,)))
+                    input_shape=(NOISE_SHAPE,)))
     model.add(BatchNormalization())
     model.add(ReLU())
 
@@ -76,24 +75,15 @@ def make_generator_model():
 # The discriminator outputs a probability that the input image is real or fake [0, 1].
 def make_discriminator_model(loss_index):
     model = tf.keras.Sequential()
-
-    model.add(Conv2D(32, (3, 3), input_shape=(IMG_WIDTH, IMG_HEIGHT, 1), name='conv0'))
+    model.add(Conv2D(64, (5, 5), strides=(2, 2), padding='same', input_shape=[IMG_WIDTH, IMG_HEIGHT, 1]))
     model.add(LeakyReLU())
+    model.add(Dropout(0.3))
 
-    model.add(Conv2D(64, (3, 3), name='conv1'))
-    model.add(BatchNormalization())
+    model.add(Conv2D(128, (5, 5), strides=(2, 2), padding='same'))
     model.add(LeakyReLU())
-
-    model.add(Conv2D(128, (3, 3), name='conv2'))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU())
+    model.add(Dropout(0.3))
 
     model.add(Flatten())
-    model.add(Dense(512))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU())
-
-    model.add(Dropout(0.5))
     model.add(Dense(1))
 
     if loss_index:
@@ -157,10 +147,21 @@ def generate_and_save_images(model, loss_name, epoch, test_input):
     plt.savefig(name_fig)
 
 
-def train(dataset, epochs, loss_name):
+def train(dataset, epochs):
+    i = 0
+    name = tf.train.latest_checkpoint(checkpoint_dir)
+    checkpoint.restore(name)
+    if tf.train.latest_checkpoint(checkpoint_dir):
+        print(f"Restored from {name}")
+        # Ex. Latest checkpoint was 10 (at epoch 100), now training
+        # will start from 101
+        i = int(f'{name[-2]}{name[-1]}') * 10
+    else:
+        print("Initializing from scratch.")
+
     losses, epoch_losses = [0.0, 0.0, 0.0], []
-    for epoch in range(epochs):
-        print(f"Starting training for epoch {epoch+1}/{EPOCHS}. Max batches:{MAX_BATCHES}")
+    for epoch in range(i, epochs):
+        print(f"Starting training for epoch {epoch + 1}/{EPOCHS}. Max batches:{MAX_BATCHES}")
 
         start = time.time()
         for image_batch in dataset:
@@ -188,20 +189,15 @@ def train(dataset, epochs, loss_name):
         if (epoch + 1) % SAVE_PLOT_INTERVAL == 0:
             print("Saving model and plotting discriminator losses.")
             checkpoint.save(file_prefix=checkpoint_prefix)
-            plot_losses(epoch_losses, img_gen_dir, loss_name, epoch+1, BATCH_SIZE)
+            plot_losses(epoch_losses, img_gen_dir, loss_name, epoch + 1, BATCH_SIZE)
 
 
 # Could add a Data Augmentation step
-def start(loss_index):
-    if loss_index == 0:
-        loss_name = "bce"
-    else:
-        loss_name = "mse"
-
+def start():
     create_dir(img_gen_dir)
     create_dir(img_gen_dir + loss_name)
     print(f"Starting training with loss {loss_name}.")
-    train(train_dataset, EPOCHS, loss_name)
+    train(train_dataset, EPOCHS)
     print("Training completed.")
     print("Done.")
 
@@ -224,15 +220,11 @@ train_dataset, val_dataset = get_train_and_val_dataset_IDG(rescale=RESCALING_FAC
 
 loss = get_loss_function(LOSS_INDEX)
 discriminator = make_discriminator_model(LOSS_INDEX)
-checkpoint_dir = '/training_checkpoints'
-checkpoint_prefix = os.path.join(img_gen_dir + checkpoint_dir, "ckpt")
+loss_name = 'mse' if LOSS_INDEX else 'bce'
+checkpoint_dir = img_gen_dir + loss_name + '/training_checkpoints'
+checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
 checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                  discriminator_optimizer=discriminator_optimizer,
                                  generator=generator,
                                  discriminator=discriminator)
-start(LOSS_INDEX)
-
-#loss = get_loss_function(1)
-#start(1)
-
-
+start()
