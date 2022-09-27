@@ -1,25 +1,19 @@
 import numpy as np
 import tensorflow as tf
-import torch.nn
 from keras import Model, Input
-from keras.applications import vgg16
-from keras.applications.resnet import ResNet, ResNet50
+from keras.applications.resnet import ResNet50
 from sklearn.model_selection import KFold
-from preprocessing import get_train_and_val_dataset, get_train_and_val_dataset_IDG
+from preprocessing import get_train_and_val_dataset_IDG
 
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, \
-    Dropout, Flatten, Dense, Activation, \
-    BatchNormalization, AveragePooling2D, GlobalAveragePooling2D
+    Dropout, Flatten, Dense, Activation
 
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
 from utils import plot_scores, create_dir
 
-import timm
-# os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
-
-MODEL = 3                   # Index of chosen model
-BATCH_SIZE = 32
+MODEL = 2                   # Index of chosen model
+BATCH_SIZE = 64
 N_OF_EPOCHS = 30
 
 N_OF_FOLDS = 5
@@ -74,8 +68,8 @@ def get_model(i: int):
 
         model.add(Dropout(0.5))
         model.add(Dense(1))
-
         model.add(Activation('sigmoid'))
+
         adam_optimizer = tf.optimizers.Adam(learning_rate=0.001)
 
         model.compile(
@@ -88,18 +82,7 @@ def get_model(i: int):
         return model
 
     if i == 3:
-
-        # vgg16_model = vgg16.VGG16(weights='imagenet', include_top=False, input_shape=(IMG_WIDTH, IMG_HEIGHT, 3))
-        # custom_model = Sequential()
-        #
-        # for layer in vgg16_model.layers[:-1]:
-        #     custom_model.add(layer)
-        #
-        # custom_model.add(Flatten(name='last_flatten'))
-        # custom_model.add(Dense(512, activation='relu'))
-        # custom_model.add(Dense(1))
-        # custom_model.add(Activation('sigmoid'))
-
+        #ResNet model
         input_layer = Input(shape=(IMG_WIDTH, IMG_HEIGHT, 3))
         resnet_model = ResNet50(weights='imagenet', input_tensor=input_layer, include_top=False)
         last_layer = resnet_model.output    #Takes out the last layer
@@ -122,39 +105,6 @@ def get_model(i: int):
         model.summary()
         return model
 
-    if i == 4:
-        model = Sequential()
-        model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_WIDTH, IMG_HEIGHT, CHANNELS)))
-        model.add(BatchNormalization())
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(0.25))
-
-        model.add(Conv2D(64, (3, 3), activation='relu'))
-        model.add(BatchNormalization())
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(0.25))
-
-        model.add(Conv2D(128, (3, 3), activation='relu'))
-        model.add(BatchNormalization())
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(0.25))
-
-        model.add(Flatten())
-        model.add(Dense(512, activation='relu'))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.5))
-        model.add(Dense(1, activation='sigmoid'))
-
-        adam_optimizer = tf.optimizers.Adam(learning_rate=0.001)
-
-        model.compile(
-            optimizer=adam_optimizer,
-            loss='binary_crossentropy',
-            metrics=['accuracy']
-        )
-
-        model.summary()
-        return model
 
 reduce_lr_acc = ReduceLROnPlateau(monitor='accuracy', factor=0.1, patience=7, verbose=1, min_delta=1e-4, mode='max')
 early_stopping = EarlyStopping(monitor='accuracy', patience=15, verbose=0, mode='max')
@@ -204,7 +154,7 @@ def k_fold_cross_validation():
                     X_test = np.insert(X_test, 1, np.array(image_batch[0]), axis=0)
                     y_test = np.insert(y_test, 1, np.array(image_batch[1]), axis=0)
 
-        #Necessary for VG16 models only work with images with 3 channels
+        #Necessary for ResNet models only work with images with 3 channels
         #while grayscale only have 1
         if MODEL == 3:
             X_test = X_test.repeat(3,axis=-1)

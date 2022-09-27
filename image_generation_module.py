@@ -1,8 +1,6 @@
-import glob
 import os
 import time
 from IPython import display
-import imageio
 import tensorflow as tf
 from matplotlib import pyplot as plt
 from utils import create_dir, add_value_to_avg, remove_if_exists
@@ -16,10 +14,10 @@ from utils import plot_losses
 tf.config.run_functions_eagerly(True)
 np_config.enable_numpy_behavior()
 
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 MAX_BATCHES = 25000 / BATCH_SIZE
 img_gen_dir = 'img_gen/'
-LOSS_INDEX = 1  # 0:BCE, 1:MSE
+LOSS_INDEX = 0  # 0:BCE, 1:MSE
 
 IMG_WIDTH = 28
 IMG_HEIGHT = 28
@@ -29,7 +27,7 @@ NOISE_SHAPE = 100
 SCALE_FACTOR = 4
 RESCALING_FACTOR = 127.5
 
-EPOCHS = 110
+EPOCHS = 100
 SAVE_IMAGES_INTERVAL = 5
 SAVE_PLOT_INTERVAL = 10
 noise_dim = 100
@@ -126,6 +124,7 @@ def train_step(images):
 
     generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
+
     return gen_loss.numpy(), r_disc_loss.numpy(), f_disc_loss.numpy()
 
 
@@ -159,24 +158,22 @@ def train(dataset, epochs):
     else:
         print("Initializing from scratch.")
 
-    losses, epoch_losses = [0.0, 0.0, 0.0], []
+    epoch_losses = []
     for epoch in range(i, epochs):
         print(f"Starting training for epoch {epoch + 1}/{EPOCHS}. Max batches:{MAX_BATCHES}")
-
+        losses = [0.0, 0.0, 0.0]
         start = time.time()
         for image_batch in dataset:
             if dataset.batch_index == 0:
                 print('Training finished. Time for epoch {} is {} sec'.format(epoch + 1, time.time() - start))
                 break
-            # Train the model for each batch in the train set of the fold and save
-            # generator and discriminator losses
+            # Train the model for each batch in the train set
             gen_l, r_disc_l, f_disc_l = train_step(image_batch[0])
             losses = [add_value_to_avg(losses[0], gen_l, dataset.batch_index),
                       add_value_to_avg(losses[1], r_disc_l, dataset.batch_index),
                       add_value_to_avg(losses[2], f_disc_l, dataset.batch_index)]
 
         epoch_losses.append(losses)
-
         if epoch == 0 or (epoch + 1) % SAVE_IMAGES_INTERVAL == 0:
             print("Saving generated images")
             display.clear_output(wait=True)

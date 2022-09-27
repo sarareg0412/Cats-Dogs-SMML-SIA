@@ -2,12 +2,13 @@ import os
 import glob
 import re
 import shutil
-import warnings
 from builtins import float
 
 import tensorflow as tf
 from PIL import Image, UnidentifiedImageError
 from keras_preprocessing.image import ImageDataGenerator
+
+from utils import create_dir
 
 IMGS_PATH = "../CatsDogs/"
 TRASH_PATH = "../Trash/"
@@ -17,23 +18,14 @@ SUBDIRS = ["./images/test/", "./images/train/"]
 CATS = "Cats"
 DOGS = "Dogs"
 
-# matches any string with the substring ".<digits>."
-# such as dog.666.jpg
 pattern = re.compile(r'.*\.(\d+)\..*')
 
-
 def trash_path(dirname):
-    '''return the path of the Trash directory,
-    where the bad dog and bad cat images will be moved.
-    Note that the Trash directory should not be within the dogs/
-    or the cats/ directory, or Keras will still find these pictures.
-    '''
+    '''return the path of the Trash directory'''
     return os.path.join(TRASH_PATH, dirname)
 
 
 def cleanup(ids, dirname):
-    '''move away images with these ids in dirname
-    '''
     # if it exists, it is first removed
     trash = trash_path(dirname)
     if os.path.isdir(trash):
@@ -46,89 +38,47 @@ def cleanup(ids, dirname):
 
 
 def restore(dirname):
-    '''restores files in the trash
-    I will need this to restore this tutorial to initial state for you
-    and you might need it if you want to try training the network
-    without the cleaning of bad images
-    '''
-    # os.chdir(IMGS_PATH)
-    # oldpwd = os.getcwd()
-    # os.chdir(dirname)
+
+    '''restores files from trash'''
     trash = trash_path(dirname)
-    # print(trash)
     for fname in os.listdir(trash):
         trash_name = os.path.join(trash, fname)
-        print('restoring', trash_name)
+        print(f'Restoring {trash_name}')
         shutil.move(trash_name, IMGS_PATH + dirname + "/" + fname)
-    # os.chdir(oldpwd)
 
 
-def rm_faulty_images(path: str = None):
-    warnings.filterwarnings(
-        "ignore",
-        "(Possibly )?corrupt EXIF data",
-        UserWarning
-    )
-
-    warnings.filterwarnings(
-        "ignore",
-        "extraneous bytes before marker",
-        UserWarning
-    )
-
+def remove_corrupted_images(path: str = None):
     img_paths = glob.glob(os.path.join(path, '*/*.*'))
-    faulty_images = []
+    bad_images = []
 
-    print("Bad paths:")
+    print("Corrupted images:")
     for image_path in img_paths:
         try:
-            # we deal also with PIL for torch
-            # (tf skips jpgs that causes training issues)
             img_bytes = tf.io.read_file(image_path)
-            _ = tf.image.decode_image(img_bytes)
-            _ = Image.open(image_path)
+            tf.image.decode_image(img_bytes)
+            Image.open(image_path)
         except (
                 tf.errors.InvalidArgumentError,
                 UnidentifiedImageError
         ) as e:
-            print(f"- Found bad path at: {image_path} - {e}")
-            faulty_images.append(image_path)
+            print(f"Found corrupted image at: {image_path} - {e}")
+            bad_images.append(image_path)
 
-    if len(faulty_images) == 0:
-        print("No faulty  images found.")
+    if len(bad_images) == 0:
+        print("No corrupted images found.")
     else:
         print("Removing them...")
-        if not os.path.exists(f"{TRASH_PATH}"):
-            os.mkdir(f"{TRASH_PATH}")
-            os.mkdir(f"{TRASH_PATH}{CATS}")
-            os.mkdir(f"{TRASH_PATH}{DOGS}")
-        for path in faulty_images:
+        create_dir(TRASH_PATH)
+        create_dir(TRASH_PATH + CATS)
+        create_dir(TRASH_PATH + DOGS)
+        for path in bad_images:
             print(f"Moving image: {path} to Trash")
             shutil.move(f"{path}", f"{TRASH_PATH}{path[len(IMGS_PATH):]}")
 
 
-# restore(CATS)
-# restore(DOGS)
-# rm_faulty_images(IMGS_PATH)
-
-def get_train_and_val_dataset(rescale: float, size: (int, int), batch_size: int):
-    normalization_layer = tf.keras.layers.Rescaling(1. / rescale)
-
-    train_dataset = tf.keras.utils.image_dataset_from_directory(
-        IMGS_PATH,                  # Directory where the data is located
-        labels='inferred',
-        label_mode='binary',
-        color_mode="grayscale",
-        batch_size=batch_size,
-        image_size=size,
-        seed=123,
-        interpolation='nearest'
-    )
-
-    normalized_train_ds = train_dataset.map(lambda x, y: (normalization_layer(x), y))
-
-    return normalized_train_ds
-
+#restore(CATS)
+#restore(DOGS)
+#remove_corrupted_images(IMGS_PATH)
 
 def get_train_and_val_dataset_IDG(rescale: float, size: (int, int), batch_size: int, validation: float):
     gen = ImageDataGenerator(

@@ -1,9 +1,5 @@
 import os
-import shutil
-import sys
-
 import matplotlib.pyplot as plt
-
 
 N_OF_FOLDS = 5
 
@@ -68,7 +64,7 @@ def plot_losses(losses, save_plot_dir, loss, epochs, batch):
     plt.savefig(name)
 
 
-# Create directory if it doesn't with the passed path
+# Create directory if it doesn't exist, with the passed path
 def create_dir(path):
     if not os.path.isdir(path):
         os.makedirs(path, exist_ok=True)
